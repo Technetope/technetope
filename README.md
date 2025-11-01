@@ -15,11 +15,11 @@
   <h3>4. 動作</h3>
   <h3>5. 水面グラフィックス</h3>
   4種類のテーマを設ける
-   ・メダカ×湖畔
+   <div>・メダカ×湖畔
    ・イナゴ×草原
    ・鴨×秋空
    ・星×夜空
-   ・NGT×ITF
+   ・NGT×ITF</div>
 
  <h2>Words of the Ancients</h2>
  <i>L’homme est un roseau pensant(人間は考える葦である)</i> - Blaise Pascal(1623–1662)
