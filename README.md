@@ -1,10 +1,10 @@
 <h1>Technetope(テクネトープ)</h1>
  <h2>Artist Profile</h2>
  Junpei <B>SAITO</B>, Kosuke <B>Shimizu</B>, Tsubasa <B>SATO</B>
- <h2>Theme<h2><br>
-  - 観客は環境の一部である<br>
-  - <br>
-  - <br>
+ <h2>Theme<h2>
+  ・観客は環境の一部である<br>
+  ・<br>
+  ・<br>
  <h2>Statement</h2>
 
 
