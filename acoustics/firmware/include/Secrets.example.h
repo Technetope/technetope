@@ -5,8 +5,8 @@
 namespace secrets {
 
 // Replace with the Wi-Fi credentials used at the deployment site.
-constexpr const char WIFI_PRIMARY_SSID[] = "YOUR_SSID";
-constexpr const char WIFI_PRIMARY_PASS[] = "YOUR_WIFI_PASSWORD";
+constexpr const char WIFI_PRIMARY_SSID[] = "YOURSSID";
+constexpr const char WIFI_PRIMARY_PASS[] = "YOURPASSWORD";
 
 // Optional backup network.
 constexpr const char WIFI_SECONDARY_SSID[] = "";
@@ -16,6 +16,11 @@ constexpr const char WIFI_SECONDARY_PASS[] = "";
 constexpr uint16_t OSC_LISTEN_PORT = 9000;
 constexpr uint16_t HEARTBEAT_REMOTE_PORT = 9100;
 constexpr const char HEARTBEAT_REMOTE_HOST[] = "192.168.4.2";
+
+// NTP settings (override in Secrets.h)
+constexpr const char NTP_SERVER[] = "pool.ntp.org";
+constexpr long NTP_TIME_OFFSET_SEC = 0;       // UTC by default
+constexpr unsigned long NTP_UPDATE_INTERVAL_MS = 30000;  // 30 second refresh
 
 // AES-CTR 256-bit key/IV for OSC payload decryption.
 // Populate with production values and keep the actual file out of version control.

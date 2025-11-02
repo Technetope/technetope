@@ -120,6 +120,39 @@
     - SoundTimelineを編集・保守し、OSCバンドルを生成・送信する。
     - Stickからの状態フィードバックを受けて遅延統計・異常検知を行う。
     - GUI上から接続端末の状態監視・個別制御・即時再生パラメータ調整を提供する。
+
+#### C++ Implementation Roadmap (2025-Q1)
+1. **OSC Transport Unification**
+    - Heartbeat/announceをOSCメッセージに統一（`/announce`,`/heartbeat`,`/control/*`）。  
+    - 既存 `pc_tools/libs/osc` を共通基盤にし、受信専用の `OscListener` と送信 `OscSender` クラスを整備。  
+    - Unitテストで `/heartbeat` → 統計集計（monitor）までのパスを検証し、`tests/osc_sync_results.md` 更新ワークフローを確立。
+    - UDP処理は `asio` ベースで統一し、暗号層導入のフック（`Encryptor` インターフェース、`NonceGenerator`）を残す。
+2. **Device Registry Service**
+    - `/announce` 受信時に `devices.json` を自動生成し、GUI/CLI からターゲット選択できる API (`DeviceRegistry`) を提供。  
+    - 状態は `DeviceState{id, mac, fw_version, last_seen, heartbeat_stats}` を基本構造にし、プラットフォーム非依存で読み出せるよう `pc_tools/common` に配置。
+    - `DeviceRegistry` は `/control/register` 応答を生成し、永続化（`nlohmann::json`）とホットリロードを司る。
+3. **Scheduler/Monitor Refactor**
+    - 送信機能をライブラリ化し、CLIとGUIの双方から呼び出せる C++ API (`TimelineScheduler::sendBundles`, `HeartbeatMonitor::attach`) を定義。  
+    - 旧CLI（`agent_a_scheduler`,`agent_a_monitor`）はラッパーに移行し、ログとエラー処理を共有する。  
+    - タイムライン生成、送信ログ、受信統計を `pc_tools/tests` 配下で自動回帰テスト化。
+    - `spdlog` + `fmt` を採用し、CLIとGUIで共通のロギングポリシーを共有する。
+4. **GUI Prototype (Dear ImGui + ImPlot想定)**
+    - レイアウト: 左ペイン=デバイス一覧、右上=タイムラインプレビュー、右下=イベントログ。  
+    - 操作: プリセット手動再生、タイムライン送信、Heartbeat遅延グラフを提供。  
+    - バックエンドはステップ1-3で提供したC++ APIを利用し、描画ループ内で状態をポーリングする。  
+    - 初期リリースは macOS/Windows/Ubuntu 向けスタンドアロンを目標（CMake + GLFWビルドプリセットを追加）。
+    - OSCイベントは `IoContextRunner` スレッドで処理し、GUI側はスレッドセーフなスナップショットAPIで参照する。
+5. **5台協調PoC**
+    - `sound_assets/manifest.json` に5種類のプリセットを定義し、Stick側の `PresetStore` と整合させる。  
+    - 1→3→5台の順で再生テストを実施し、GUIで遅延／ドロップ指標を可視化、結果を `tests/osc_sync_results.md`・`tests/load_test.md` に記録。  
+    - 課題（Wi-Fi干渉、リードタイム調整、GUI応答性）を `process/issue_template.md` を使って管理する。
+    - タイムライン例: `dev-01`→`preset_a`、`dev-02`→`preset_b`、`dev-03`→`preset_c`、`dev-04`→`preset_d`、`dev-05`→`preset_e` の順で3秒間隔再生、ラウンド完了後2秒待機して再ループ。
+6. **仕上げと次フェーズ準備**
+    - C++ API にドキュメント（Doxygenコメント＋`docs/pc_workflow.md` 追記）を追加。  
+    - ビルドプリセット（リリース/デバッグ）とCIジョブを定義し、PR時に単体テスト＋GUI smoke テストを実行。  
+    - 暗号層導入のための拡張ポイント（Encryptorインターフェース、nonce管理）を設計し、Q2以降に移行可能な状態を残す。
+    - GitHub Actions でクロスプラットフォームビルド（macOS/Windows/Ubuntu）と Catch2 テスト、GUI Smoke テストを自動化する。
+
 - **作業ステップ**
     1. **環境構築**: NTPサーバー設定、OSC送信ライブラリ導入、ネットワーク疎通確認。
     2. **シーケンサ実装**: タイムライン編集UI/CLI、`Texec`算出ロジック、バンドル生成器。

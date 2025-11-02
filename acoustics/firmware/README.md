@@ -19,7 +19,7 @@ M5StickC Plus2 用のファームウェア実装一式。Wi-Fi 接続、NTP 同�
 
 ## ビルド・フラッシュ手順
 1. **前提ソフト** : PlatformIO CLI または VSCode 拡張、`espressif32` ボードパッケージ、CH9102 ドライバ。
-2. **Secrets 設定** : `include/Secrets.example.h` を `include/Secrets.h` としてコピーし、Wi-Fi SSID/Password、OSC AES キー/IV、心拍送信先を埋める。
+2. **Secrets 設定** : `include/Secrets.example.h` を `include/Secrets.h` としてコピーし、Wi-Fi SSID/Password、OSC AES キー/IV、心拍送信先、NTP サーバ (`NTP_SERVER` など) を環境に合わせて埋める。
 3. **プリセット配置** : `data/manifest.json` に再生したいファイルを登録し、`data/presets/` 下に WAV を配置。`pio run -t uploadfs` で SPIFFS に書き込む。
 4. **ビルド & 書き込み**
    ```sh
@@ -33,7 +33,8 @@ M5StickC Plus2 用のファームウェア実装一式。Wi-Fi 接続、NTP 同�
 - FreeRTOS タスクで Wi-Fi/NTP/OSC/Playback/Heartbeat を独立処理。`playbackTask` が NTP 時刻に合わせてキューを消化。
 - OSC パケットは AES-CTR (256bit) で復号後、`/acoustics/play`/`/acoustics/stop` のメッセージを処理。Timetag (`osctime_t` / 64bit) をマイクロ秒に変換して再生時刻を決定。
 - Audio 再生は `StickCP2.Speaker` の `playWav` を利用し、SPIFFS 上の WAV ファイルを PSRAM に読み込んでから再生。`sample_test` プリセットで動作確認できる。
-- 心拍メッセージは JSON 文字列で PC 側に送信（IP, RSSI, NTP 同期状態, キュー残数, 再生状態）。
+- RTC8563 を利用して起動時に時刻をシードし、NTP 同期成功時に RTC を更新することで再起動後も時刻を保持する。
+- 心拍 (`/heartbeat`) は NTP 同期完了後にのみ送信し、OSC 引数として `[device_id, seq(int32), seconds(int32), micros(int32), queue_size(int32), playing(bool)]` を送出する。PC 側は `/announce` と合わせて `DeviceRegistry` に登録しレイテンシ測定を行う。
 
 ## 次のアクション
 - `docs/device_setup.md` に沿って Wi-Fi 設定／SPIFFS へのアセット配置手順を追加する。

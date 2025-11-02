@@ -17,6 +17,8 @@ class NtpClient {
   bool forceSync(uint32_t timeout_ms);
   void loop();
 
+  void seed(uint32_t epoch_seconds);
+
   bool isSynced() const;
   uint64_t nowMicros() const;
   uint32_t lastSyncEpoch() const;

@@ -32,11 +32,17 @@ Makefile
 install_manifest.txt
 compile_commands.json
 
+# Project-specific build artifacts
+acoustics/build/
+
 # PlatformIO generated files
 .pio/
 .pioenvs/
 .piolibdeps/
 libdeps/
+acoustics/firmware/.pio/
+acoustics/firmware/.pioenvs/
+acoustics/firmware/.piolibdeps/
 
 # Firmware secrets (local only)
 acoustics/firmware/include/Secrets.h

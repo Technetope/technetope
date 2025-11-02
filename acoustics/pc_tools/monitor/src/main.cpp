@@ -1,23 +1,25 @@
+#include "acoustics/common/DeviceRegistry.h"
 #include "acoustics/osc/OscPacket.h"
+#include "acoustics/osc/OscTransport.h"
 
 #include "CLI11.hpp"
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
+#include <asio.hpp>
 
 #include <atomic>
-#include <cerrno>
 #include <cmath>
 #include <csignal>
+#include <cstdint>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -35,6 +37,7 @@ struct MonitorOptions {
     std::optional<std::filesystem::path> csv;
     std::uint64_t maxPackets{0};
     bool quiet{false};
+    std::filesystem::path registryPath{"state/devices.json"};
 };
 
 struct DeviceStats {
@@ -75,28 +78,6 @@ void updateStats(DeviceStats& stats, double sampleMs) {
     stats.m2 += delta * delta2;
 }
 
-int createSocket(const MonitorOptions& options) {
-    int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        throw std::runtime_error("Failed to create UDP socket: " + std::string(std::strerror(errno)));
-    }
-    int reuse = 1;
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-
-    sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(options.port);
-    if (::inet_pton(AF_INET, options.listenHost.c_str(), &addr.sin_addr) != 1) {
-        ::close(sock);
-        throw std::runtime_error("Invalid listen address: " + options.listenHost);
-    }
-    if (::bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
-        ::close(sock);
-        throw std::runtime_error("Failed to bind UDP socket: " + std::string(std::strerror(errno)));
-    }
-    return sock;
-}
-
 std::ofstream openCsv(const std::filesystem::path& path) {
     const bool exists = std::filesystem::exists(path);
     std::ofstream out(path, std::ios::app);
@@ -130,7 +111,17 @@ HeartbeatData parseHeartbeat(const acoustics::osc::Message& message) {
     } else {
         throw std::runtime_error("Heartbeat sequence must be int32");
     }
-    data.sentSeconds = argumentToSeconds(message.arguments[2]);
+
+    if (message.arguments.size() >= 4 &&
+        std::holds_alternative<std::int32_t>(message.arguments[2]) &&
+        std::holds_alternative<std::int32_t>(message.arguments[3])) {
+        auto secs = std::get<std::int32_t>(message.arguments[2]);
+        auto micros = std::get<std::int32_t>(message.arguments[3]);
+        data.sentSeconds = static_cast<double>(secs) +
+                           static_cast<double>(micros) / 1'000'000.0;
+    } else {
+        data.sentSeconds = argumentToSeconds(message.arguments[2]);
+    }
     return data;
 }
 
@@ -154,7 +145,8 @@ void emitSample(std::ostream& out,
 void processMessage(const acoustics::osc::Message& message,
                     const MonitorOptions& options,
                     std::unordered_map<std::string, DeviceStats>& stats,
-                    std::ofstream* csvStream) {
+                    std::ofstream* csvStream,
+                    acoustics::common::DeviceRegistry* registry) {
     HeartbeatData data;
     try {
         data = parseHeartbeat(message);
@@ -168,6 +160,10 @@ void processMessage(const acoustics::osc::Message& message,
 
     updateStats(stats[data.deviceId], latencyMs);
 
+    if (registry) {
+        registry->recordHeartbeat(data.deviceId, latencyMs, arrival);
+    }
+
     if (!options.quiet) {
         std::cout << "[" << data.deviceId << "] seq=" << data.sequence
                   << " latency=" << std::fixed << std::setprecision(3) << latencyMs << " ms" << std::endl;
@@ -179,15 +175,106 @@ void processMessage(const acoustics::osc::Message& message,
     }
 }
 
+void processAnnounce(const acoustics::osc::Message& message,
+                     const MonitorOptions& options,
+                     acoustics::common::DeviceRegistry& registry) {
+    if (message.arguments.empty()) {
+        if (!options.quiet) {
+            std::cerr << "Announce message missing arguments" << std::endl;
+        }
+        return;
+    }
+
+    auto getStringArg = [&](std::size_t index) -> std::optional<std::string> {
+        if (index >= message.arguments.size()) {
+            return std::nullopt;
+        }
+        if (const auto* value = std::get_if<std::string>(&message.arguments[index])) {
+            return *value;
+        }
+        return std::nullopt;
+    };
+
+    auto looksLikeMac = [](const std::string& text) {
+        return text.find(':') != std::string::npos;
+    };
+
+    std::optional<std::string> deviceId = getStringArg(0);
+    if (!deviceId) {
+        if (!options.quiet) {
+            std::cerr << "Announce first argument must be string" << std::endl;
+        }
+        return;
+    }
+
+    std::optional<std::string> macArg;
+    std::size_t nextIndex = 1;
+
+    if (looksLikeMac(*deviceId)) {
+        macArg = deviceId;
+        deviceId = std::nullopt;
+        auto maybeSecond = getStringArg(1);
+        if (maybeSecond && !looksLikeMac(*maybeSecond)) {
+            deviceId = maybeSecond;
+            nextIndex = 2;
+        }
+    } else {
+        macArg = getStringArg(1);
+        nextIndex = 2;
+    }
+
+    if (!macArg) {
+        if (!options.quiet) {
+            std::cerr << "Announce message missing MAC address" << std::endl;
+        }
+        return;
+    }
+
+    std::string fwVersion;
+    if (auto maybeFw = getStringArg(nextIndex)) {
+        fwVersion = *maybeFw;
+        ++nextIndex;
+    }
+
+    std::optional<std::string> alias;
+    if (auto maybeAlias = getStringArg(nextIndex)) {
+        alias = *maybeAlias;
+    }
+    if (!alias && deviceId) {
+        alias = *deviceId;
+    }
+
+    auto now = std::chrono::system_clock::now();
+    auto state = registry.registerAnnounce(*macArg, fwVersion, alias, now);
+    if (!options.quiet) {
+        std::cout << "ANNOUNCE id=" << (deviceId ? *deviceId : state.id)
+                  << " mac=" << state.mac
+                  << " fw=" << state.firmwareVersion;
+        if (state.alias) {
+            std::cout << " alias=" << *state.alias;
+        }
+        std::cout << std::endl;
+    }
+}
+
 void processPacket(const acoustics::osc::Packet& packet,
                    const MonitorOptions& options,
                    std::unordered_map<std::string, DeviceStats>& stats,
-                   std::ofstream* csvStream) {
+                   std::ofstream* csvStream,
+                   acoustics::common::DeviceRegistry* registry) {
+    auto handle = [&](const acoustics::osc::Message& msg) {
+        if (registry && msg.address == "/announce") {
+            processAnnounce(msg, options, *registry);
+            return;
+        }
+        processMessage(msg, options, stats, csvStream, registry);
+    };
+
     if (const auto* message = std::get_if<acoustics::osc::Message>(&packet)) {
-        processMessage(*message, options, stats, csvStream);
+        handle(*message);
     } else if (const auto* bundle = std::get_if<acoustics::osc::Bundle>(&packet)) {
         for (const auto& msg : bundle->elements) {
-            processMessage(msg, options, stats, csvStream);
+            handle(msg);
         }
     }
 }
@@ -228,6 +315,7 @@ int main(int argc, char** argv) {
     app.add_option("--csv", options.csv, "Append results to CSV file");
     app.add_option("--count", options.maxPackets, "Stop after N packets (0 = unlimited)");
     app.add_flag("--quiet", options.quiet, "Suppress console output");
+    app.add_option("--registry", options.registryPath, "Device registry JSON path");
 
     try {
         app.parse(argc, argv);
@@ -237,51 +325,58 @@ int main(int argc, char** argv) {
 
     std::signal(SIGINT, handleSignal);
 
-    std::ofstream csvStream;
-    if (options.csv.has_value()) {
-        csvStream = openCsv(*options.csv);
-    }
-
     try {
-        int sock = createSocket(options);
-        std::vector<std::uint8_t> buffer(4096);
+        std::unique_ptr<std::ofstream> csvStream;
+        if (options.csv.has_value()) {
+            csvStream = std::make_unique<std::ofstream>(openCsv(*options.csv));
+        }
+
+        acoustics::common::DeviceRegistry registry(options.registryPath);
+        registry.load();
+
         std::unordered_map<std::string, DeviceStats> stats;
+        std::mutex stateMutex;
+        std::atomic_uint64_t processed{0};
 
-        std::uint64_t processed = 0;
+        asio::ip::address listenAddress;
+        try {
+            listenAddress = asio::ip::make_address(options.listenHost);
+        } catch (const std::exception& ex) {
+            throw std::runtime_error("Invalid listen address: " + options.listenHost + " (" + ex.what() + ")");
+        }
+
+        acoustics::osc::IoContextRunner runner;
+        acoustics::osc::OscListener listener(
+            runner.context(),
+            acoustics::osc::OscListener::Endpoint(listenAddress, options.port),
+            [&](const acoustics::osc::Packet& packet, const acoustics::osc::OscListener::Endpoint&) {
+                std::lock_guard lock(stateMutex);
+                processPacket(packet,
+                              options,
+                              stats,
+                              csvStream ? csvStream.get() : nullptr,
+                              &registry);
+                ++processed;
+                if (options.maxPackets > 0 && processed.load() >= options.maxPackets) {
+                    g_shouldStop.store(true);
+                }
+            });
+
+        listener.start();
+        runner.start();
+
         while (!g_shouldStop.load()) {
-            sockaddr_in src{};
-            socklen_t srclen = sizeof(src);
-            auto received = ::recvfrom(sock,
-                                       reinterpret_cast<char*>(buffer.data()),
-                                       buffer.size(),
-                                       0,
-                                       reinterpret_cast<sockaddr*>(&src),
-                                       &srclen);
-            if (received < 0) {
-                if (errno == EINTR) {
-                    continue;
-                }
-                ::close(sock);
-                throw std::runtime_error("recvfrom failed: " + std::string(std::strerror(errno)));
-            }
-
-            try {
-                std::vector<std::uint8_t> payload(buffer.begin(), buffer.begin() + static_cast<std::size_t>(received));
-                auto packet = acoustics::osc::decodePacket(payload);
-                processPacket(packet, options, stats, options.csv ? &csvStream : nullptr);
-            } catch (const std::exception& ex) {
-                if (!options.quiet) {
-                    std::cerr << "Discarded packet: " << ex.what() << '\n';
-                }
-            }
-            ++processed;
-            if (options.maxPackets > 0 && processed >= options.maxPackets) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            if (options.maxPackets > 0 && processed.load() >= options.maxPackets) {
                 break;
             }
         }
 
-        ::close(sock);
+        listener.stop();
+        runner.stop();
+
         if (!options.quiet) {
+            std::lock_guard lock(stateMutex);
             printSummary(stats);
         }
     } catch (const std::exception& ex) {

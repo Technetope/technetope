@@ -19,6 +19,7 @@ void WiFiManager::begin() {
 
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(true);
+  last_connected_ = WiFi.status() == WL_CONNECTED;
   connect(primary_);
 }
 
@@ -28,8 +29,18 @@ void WiFiManager::loop() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
+    if (!last_connected_) {
+      Serial.printf("[WiFi] Connected. IP=%s RSSI=%d\n",
+                    WiFi.localIP().toString().c_str(), WiFi.RSSI());
+    }
+    last_connected_ = true;
     attempt_count_ = 0;
     return;
+  }
+
+  if (last_connected_) {
+    Serial.println("[WiFi] Connection lost. Retrying...");
+    last_connected_ = false;
   }
 
   const unsigned long now = millis();
@@ -74,6 +85,15 @@ IPAddress WiFiManager::ip() const {
 
 int32_t WiFiManager::rssi() const {
   return WiFi.RSSI();
+}
+
+std::string WiFiManager::mac() const {
+  uint8_t raw[6];
+  WiFi.macAddress(raw);
+  char buffer[18];
+  snprintf(buffer, sizeof(buffer), "%02X:%02X:%02X:%02X:%02X:%02X",
+           raw[0], raw[1], raw[2], raw[3], raw[4], raw[5]);
+  return std::string(buffer);
 }
 
 void WiFiManager::connect(const WiFiCredentials& credentials) {

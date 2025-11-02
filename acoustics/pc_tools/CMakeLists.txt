@@ -16,6 +16,38 @@ if(ACOUSTICS_ENABLE_ASAN)
     endif()
 endif()
 
+include(FetchContent)
+
+set(FETCHCONTENT_QUIET OFF)
+
+FetchContent_Declare(fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG 10.2.1
+)
+
+FetchContent_Declare(spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG v1.12.0
+)
+
+FetchContent_Declare(asio
+    GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+    GIT_TAG asio-1-28-0
+)
+
+set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
+set(ASIO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(ASIO_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASIO_BUILD_DOC OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(fmt spdlog asio)
+
+if (NOT TARGET asio::asio)
+    add_library(asio INTERFACE)
+    target_include_directories(asio INTERFACE ${asio_SOURCE_DIR}/asio/include)
+    add_library(asio::asio ALIAS asio)
+endif()
+
 add_subdirectory(libs)
 add_subdirectory(scheduler)
 add_subdirectory(monitor)

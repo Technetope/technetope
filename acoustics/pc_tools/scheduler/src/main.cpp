@@ -1,15 +1,12 @@
+#include "acoustics/osc/OscTransport.h"
 #include "acoustics/scheduler/SoundTimeline.h"
 
 #include "CLI11.hpp"
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
+#include <asio.hpp>
 
 #include <chrono>
-#include <cerrno>
-#include <cstring>
+#include <cstdint>
 #include <ctime>
 #include <iomanip>
 #include <iostream>
@@ -67,32 +64,6 @@ std::chrono::system_clock::time_point parseIsoTime(std::string value) {
     return tp;
 }
 
-int createSocket(bool broadcast) {
-    int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        throw std::runtime_error("Failed to create UDP socket: " + std::string(std::strerror(errno)));
-    }
-
-    if (broadcast) {
-        int opt = 1;
-        if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt)) < 0) {
-            ::close(sock);
-            throw std::runtime_error("Failed to enable SO_BROADCAST: " + std::string(std::strerror(errno)));
-        }
-    }
-    return sock;
-}
-
-sockaddr_in buildDestination(const std::string& host, std::uint16_t port) {
-    sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    if (::inet_pton(AF_INET, host.c_str(), &addr.sin_addr) != 1) {
-        throw std::runtime_error("Invalid IPv4 address: " + host);
-    }
-    return addr;
-}
-
 void printBundle(const acoustics::osc::Bundle& bundle) {
     auto execTime = acoustics::osc::fromTimetag(bundle.timetag);
     auto tt = std::chrono::system_clock::to_time_t(execTime);
@@ -124,27 +95,25 @@ void printBundle(const acoustics::osc::Bundle& bundle) {
 
 void sendBundles(const std::vector<acoustics::osc::Bundle>& bundles,
                  const SchedulerOptions& options) {
-    int sock = createSocket(options.broadcast);
-    auto dest = buildDestination(options.host, options.port);
+    asio::io_context ioContext;
+    asio::ip::address address;
+    try {
+        address = asio::ip::make_address(options.host);
+    } catch (const std::exception& ex) {
+        throw std::runtime_error("Invalid destination address: " + options.host + " (" + ex.what() + ")");
+    }
+
+    acoustics::osc::OscSender sender(
+        ioContext,
+        acoustics::osc::OscSender::Endpoint(address, options.port),
+        options.broadcast);
 
     for (std::size_t i = 0; i < bundles.size(); ++i) {
-        auto packet = acoustics::osc::encodeBundle(bundles[i]);
-        auto sent = ::sendto(sock,
-                             reinterpret_cast<const char*>(packet.data()),
-                             packet.size(),
-                             0,
-                             reinterpret_cast<sockaddr*>(&dest),
-                             sizeof(dest));
-        if (sent < 0) {
-            ::close(sock);
-            throw std::runtime_error("Failed to send UDP packet: " + std::string(std::strerror(errno)));
-        }
+        sender.send(bundles[i]);
         if (options.spacing > 0.0 && i + 1 < bundles.size()) {
             std::this_thread::sleep_for(std::chrono::duration<double>(options.spacing));
         }
     }
-
-    ::close(sock);
 }
 
 }  // namespace

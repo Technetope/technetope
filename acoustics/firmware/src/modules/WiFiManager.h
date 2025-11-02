@@ -27,6 +27,7 @@ class WiFiManager {
   bool isConnected() const;
   IPAddress ip() const;
   int32_t rssi() const;
+  std::string mac() const;
 
  private:
   WiFiCredentials primary_{};
@@ -34,6 +35,7 @@ class WiFiManager {
   bool configured_ = false;
   unsigned long last_attempt_ms_ = 0;
   uint8_t attempt_count_ = 0;
+  bool last_connected_ = false;
 
   void connect(const WiFiCredentials& credentials);
 };
