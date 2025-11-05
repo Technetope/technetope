@@ -162,7 +162,30 @@ async def handle_query(payload, websocket: WebSocket):
         }
 
     if info == "battery":
-        battery_level = await read_battery_level(cube_status.cube)
+        try:
+            battery_level = await read_battery_level(cube_status.cube)
+        except asyncio.TimeoutError:
+            print(f"Timed out while reading battery level for {target}")
+            return {
+                "type": "response",
+                "payload": {
+                    "info": info,
+                    "target": target,
+                    "battery_level": None,
+                    "message": "Timed out while reading battery level"
+                }
+            }
+        except Exception as exc:
+            print(f"Failed to read battery level for {target}: {exc}")
+            return {
+                "type": "response",
+                "payload": {
+                    "info": info,
+                    "target": target,
+                    "battery_level": None,
+                    "message": "Failed to read battery level"
+                }
+            }
         return {
             "type": "response",
             "payload": {

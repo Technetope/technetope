@@ -38,9 +38,10 @@ def create_notification_handler(cube_status: CubeStatus, on_update=None):
       cube_status.set_on_mat(False)
       if on_update:
         on_update()
-      print(f"Position: Missed for {cube_status.name} in notification.")
+      # print(f"Position: Missed for {cube_status.name} in notification.")
     else:
-      print(f"No valid position data for {cube_status.name} in notification.")
+      # print(f"No valid position data for {cube_status.name} in notification.")
+      pass
 
   return handler
 
