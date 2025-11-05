@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toio Controller</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+        }
+        .controller {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        .button {
+            width: 100px;
+            height: 50px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #007BFF;
+            color: white;
+        }
+        .button:active {
+            background-color: #0056b3;
+        }
+        .joystick {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .joystick button {
+            width: 100px;
+            height: 100px;
+            font-size: 18px;
+            border-radius: 50%;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .joystick button:active {
+            background-color: #1e7e34;
+        }
+        .input-container {
+            margin: 20px;
+        }
+        .input-container input {
+            padding: 10px;
+            font-size: 16px;
+            width: 200px;
+            margin-right: 10px;
+        }
+        .console {
+            margin-top: 20px;
+            padding: 10px;
+            width: 80%;
+            height: 150px;
+            background-color: #333;
+            color: #fff;
+            overflow-y: auto;
+            border-radius: 5px;
+            text-align: left;
+            font-family: monospace;
+        }
+        .slider-container {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .slider {
+            width: 300px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="controller">
+        <h1>Toio Cube Controller</h1>
+        <div class="input-container">
+            <input type="text" id="toio-id" placeholder="Enter Toio ID (e.g., 685)">
+            <button class="button" id="connect">Connect</button>
+            <button class="button" id="disconnect">Disconnect</button>
+        </div>
+        <div class="joystick">
+            <button id="up">↑</button>
+            <button id="stop">■</button>
+            <button id="down">↓</button>
+            <button id="left">←</button>
+            <button id="center">○</button>
+            <button id="right">→</button>
+        </div>
+        <div class="slider-container">
+            <label for="red-slider">Red:</label>
+            <input type="range" id="red-slider" class="slider" min="0" max="255" value="255">
+            <label for="green-slider">Green:</label>
+            <input type="range" id="green-slider" class="slider" min="0" max="255" value="0">
+            <label for="blue-slider">Blue:</label>
+            <input type="range" id="blue-slider" class="slider" min="0" max="255" value="0">
+            <button class="button" id="set-led">Set LED</button>
+        </div>
+        <div class="console" id="console"></div>
+    </div>
+
+    <script>
+        const ws = new WebSocket("ws://localhost:8765/ws");
+        const consoleElement = document.getElementById("console");
+
+        function logToConsole(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            consoleElement.innerHTML += `[${timestamp}] ${message}\n`;
+            consoleElement.scrollTop = consoleElement.scrollHeight;
+        }
+
+        ws.onopen = () => {
+            logToConsole("WebSocket connection established.");
+        };
+
+        ws.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            logToConsole(`Message from server: ${JSON.stringify(message)}`);
+        };
+
+        ws.onclose = () => {
+            logToConsole("WebSocket connection closed.");
+        };
+
+        ws.onerror = (error) => {
+            logToConsole(`WebSocket error: ${error}`);
+        };
+
+        document.getElementById("connect").addEventListener("click", () => {
+            const toioId = document.getElementById("toio-id").value;
+            if (!toioId) {
+                logToConsole("Please enter a Toio ID.");
+                return;
+            }
+            const payload = {
+                type: "command",
+                payload: {
+                    cmd: "connect",
+                    target: toioId,
+                    params: {}
+                }
+            };
+            ws.send(JSON.stringify(payload));
+            logToConsole(`Sent connect command for Toio ID: ${toioId}`);
+        });
+
+        document.getElementById("disconnect").addEventListener("click", () => {
+            const toioId = document.getElementById("toio-id").value;
+            if (!toioId) {
+                logToConsole("Please enter a Toio ID.");
+                return;
+            }
+            const payload = {
+                type: "command",
+                payload: {
+                    cmd: "disconnect",
+                    target: toioId,
+                    params: {}
+                }
+            };
+            ws.send(JSON.stringify(payload));
+            logToConsole(`Sent disconnect command for Toio ID: ${toioId}`);
+        });
+
+        document.getElementById("up").addEventListener("click", () => {
+            const toioId = document.getElementById("toio-id").value;
+            if (!toioId) {
+                logToConsole("Please enter a Toio ID.");
+                return;
+            }
+            const payload = {
+                type: "command",
+                payload: {
+                    cmd: "move",
+                    target: toioId,
+                    params: {
+                        left_speed: 50,
+                        right_speed: 50
+                    }
+                }
+            };
+            ws.send(JSON.stringify(payload));
+            logToConsole(`Sent move up command for Toio ID: ${toioId}`);
+        });
+
+        document.getElementById("down").addEventListener("click", () => {
+            const toioId = document.getElementById("toio-id").value;
+            if (!toioId) {
+                logToConsole("Please enter a Toio ID.");
+                return;
+            }
+            const payload = {
+                type: "command",
+                payload: {
+                    cmd: "move",
+                    target: toioId,
+                    params: {
+                        left_speed: -50,
+                        right_speed: -50
+                    }
+                }
+            };
+            ws.send(JSON.stringify(payload));
+            logToConsole(`Sent move down command for Toio ID: ${toioId}`);
+        });
+
+        document.getElementById("left").addEventListener("click", () => {
+            const toioId = document.getElementById("toio-id").value;
+            if (!toioId) {
+                logToConsole("Please enter a Toio ID.");
+                return;
+            }
+            const payload = {
+                type: "command",
+                payload: {
+                    cmd: "move",
+                    target: toioId,
+                    params: {
+                        left_speed: -30,
+                        right_speed: 30
+                    }
+                }
+            };
+            ws.send(JSON.stringify(payload));
+            logToConsole(`Sent move left command for Toio ID: ${toioId}`);
+        });
+
+        document.getElementById("right").addEventListener("click", () => {
+            const toioId = document.getElementById("toio-id").value;
+            if (!toioId) {
+                logToConsole("Please enter a Toio ID.");
+                return;
+            }
+            const payload = {
+                type: "command",
+                payload: {
+                    cmd: "move",
+                    target: toioId,
+                    params: {
+                        left_speed: 30,
+                        right_speed: -30
+                    }
+                }
+            };
+            ws.send(JSON.stringify(payload));
+            logToConsole(`Sent move right command for Toio ID: ${toioId}`);
+        });
+
+        document.getElementById("stop").addEventListener("click", () => {
+            const toioId = document.getElementById("toio-id").value;
+            if (!toioId) {
+                logToConsole("Please enter a Toio ID.");
+                return;
+            }
+            const payload = {
+                type: "command",
+                payload: {
+                    cmd: "move",
+                    target: toioId,
+                    params: {
+                        left_speed: 0,
+                        right_speed: 0
+                    }
+                }
+            };
+            ws.send(JSON.stringify(payload));
+            logToConsole(`Sent stop command for Toio ID: ${toioId}`);
+        });
+
+        let ledUpdateInterval;
+        const startLedUpdate = () => {
+            if (ledUpdateInterval) return; // Prevent multiple intervals
+
+            ledUpdateInterval = setInterval(() => {
+                const toioId = document.getElementById("toio-id").value;
+                if (!toioId) {
+                    logToConsole("Please enter a Toio ID.");
+                    return;
+                }
+                const red = document.getElementById("red-slider").value;
+                const green = document.getElementById("green-slider").value;
+                const blue = document.getElementById("blue-slider").value;
+                const payload = {
+                    type: "command",
+                    payload: {
+                        cmd: "led",
+                        target: toioId,
+                        params: {
+                            r: parseInt(red),
+                            g: parseInt(green),
+                            b: parseInt(blue)
+                        }
+                    }
+                };
+                ws.send(JSON.stringify(payload));
+                logToConsole(`Sent LED command for Toio ID: ${toioId} with color RGB(${red}, ${green}, ${blue})`);
+            }, 100); // 20Hz = 50ms interval
+        };
+
+        const stopLedUpdate = () => {
+            clearInterval(ledUpdateInterval);
+            ledUpdateInterval = null;
+        };
+
+        document.querySelectorAll(".slider").forEach(slider => {
+            slider.addEventListener("mousedown", startLedUpdate);
+            slider.addEventListener("mouseup", stopLedUpdate);
+            slider.addEventListener("mouseleave", stopLedUpdate);
+        });
+    </script>
+</body>
+</html>
