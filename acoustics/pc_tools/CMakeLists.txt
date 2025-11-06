@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(CTest)
+
 option(ACOUSTICS_ENABLE_ASAN "Enable AddressSanitizer for local builds" OFF)
 
 if(ACOUSTICS_ENABLE_ASAN)
@@ -50,6 +52,10 @@ FetchContent_Declare(implot
     GIT_TAG v0.15
 )
 
+FetchContent_Declare(Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG v3.5.2
+)
 set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
 set(ASIO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(ASIO_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -62,6 +68,10 @@ set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(fmt spdlog asio glfw)
 
 FetchContent_MakeAvailable(imgui implot)
+
+if (BUILD_TESTING)
+    FetchContent_MakeAvailable(Catch2)
+endif()
 
 add_library(imgui STATIC
     ${imgui_SOURCE_DIR}/imgui.cpp

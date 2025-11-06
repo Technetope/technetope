@@ -1,10 +1,5 @@
-set(GUI_SOURCES
-    src/main.cpp
-    ../scheduler/src/SoundTimeline.cpp
-)
-
 add_executable(acoustics_gui
-    ${GUI_SOURCES}
+    src/main.cpp
 )
 
 find_package(OpenGL REQUIRED)
@@ -24,6 +19,7 @@ target_link_libraries(acoustics_gui
         glfw
         OpenGL::GL
         acoustics_osc
+        acoustics_scheduler
         fmt::fmt
         spdlog::spdlog
         asio::asio

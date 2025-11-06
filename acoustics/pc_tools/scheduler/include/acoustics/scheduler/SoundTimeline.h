@@ -2,8 +2,11 @@
 
 #include "acoustics/osc/OscPacket.h"
 
+#include "acoustics/scheduler/TargetResolver.h"
+
 #include <chrono>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -13,6 +16,20 @@ struct TimelineEvent {
     double offsetSeconds{};
     std::string address;
     std::vector<osc::Argument> arguments;
+    std::vector<std::string> targets;
+};
+
+struct ScheduledMessage {
+    osc::Message message;
+    std::optional<std::string> targetId;
+    std::optional<std::string> presetId;
+};
+
+struct ScheduledBundle {
+    std::chrono::system_clock::time_point executionTime{};
+    std::vector<ScheduledMessage> messages;
+
+    osc::Bundle toOscBundle() const;
 };
 
 class SoundTimeline {
@@ -22,6 +39,12 @@ public:
     const std::vector<TimelineEvent>& events() const noexcept { return events_; }
     double defaultLeadTimeSeconds() const noexcept { return defaultLeadTime_; }
     const std::string& version() const noexcept { return version_; }
+
+    std::vector<ScheduledBundle> schedule(
+        std::chrono::system_clock::time_point baseTime,
+        double leadTimeSeconds,
+        const TargetResolver& resolver
+    ) const;
 
     std::vector<osc::Bundle> toBundles(
         std::chrono::system_clock::time_point baseTime,
