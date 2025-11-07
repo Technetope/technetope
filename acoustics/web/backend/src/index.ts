@@ -137,9 +137,11 @@ async function main(): Promise<void> {
     })
   );
 
-  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error(err);
-    res.status(400).json({ error: err.message });
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error(stack ?? message);
+    res.status(400).json({ error: message });
   });
 
   server.listen(config.port, config.host, () => {

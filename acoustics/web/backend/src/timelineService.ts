@@ -9,6 +9,92 @@ import { config } from "./config.js";
 import { appendJsonl } from "./logStore.js";
 import { FireCommand, TimelineEvent, TimelinePayload, timelineSchema } from "./types.js";
 
+interface SchedulerArtifacts {
+  schedulerJson: unknown;
+  leadSeconds: number;
+  baseTimeIso: string;
+}
+
+const MIN_LEAD_SECONDS = 3;
+const AUTO_SHIFT_MAX_DURATION_MS = 15 * 60 * 1000; // only auto-shift short test timelines
+const AUTO_SHIFT_PAST_THRESHOLD_MS = 5 * 1000;
+const AUTO_SHIFT_FUTURE_THRESHOLD_MS = 2 * 60 * 60 * 1000;
+
+function parseIsoToMillis(value: string): number {
+  const millis = Date.parse(value);
+  if (Number.isNaN(millis)) {
+    throw new Error(`Invalid ISO-8601 timestamp: ${value}`);
+  }
+  return millis;
+}
+
+function ensureUniformLead(events: TimelinePayload["events"]): number {
+  if (events.length === 0) {
+    throw new Error("Timeline must contain at least one event");
+  }
+  const firstLeadSeconds = events[0].lead_time_ms / 1000;
+  if (firstLeadSeconds < MIN_LEAD_SECONDS) {
+    throw new Error(`lead_time_ms must be >= ${MIN_LEAD_SECONDS * 1000}`);
+  }
+  for (const event of events) {
+    const leadSeconds = event.lead_time_ms / 1000;
+    if (Math.abs(leadSeconds - firstLeadSeconds) > 1e-3) {
+      throw new Error("Mixed lead_time_ms values are not supported yet");
+    }
+  }
+  return firstLeadSeconds;
+}
+
+function buildSchedulerArtifacts(timeline: TimelinePayload): SchedulerArtifacts {
+  if (timeline.events.length === 0) {
+    throw new Error("Timeline must contain at least one event");
+  }
+
+  const sortedEvents = [...timeline.events].sort((a, b) => {
+    return parseIsoToMillis(a.time_utc) - parseIsoToMillis(b.time_utc);
+  });
+
+  const leadSeconds = ensureUniformLead(sortedEvents);
+  const { events: alignedEvents, shiftMillis } = maybeAutoShiftEvents(sortedEvents, leadSeconds);
+  if (shiftMillis !== 0) {
+    const shiftedSeconds = (shiftMillis / 1000).toFixed(3);
+    console.log(
+      `[TimelineService] auto-shifted timeline ${timeline.timeline_id} by ${shiftedSeconds}s to align with current time`
+    );
+  }
+  const firstEventMillis = parseIsoToMillis(alignedEvents[0].time_utc);
+
+  const schedulerEvents = alignedEvents.map((event) => {
+    const eventMillis = parseIsoToMillis(event.time_utc);
+    const offsetSeconds = Number(((eventMillis - firstEventMillis) / 1000).toFixed(3));
+    const gain = typeof event.gain === "number" ? event.gain : 1.0;
+    return {
+      offset: offsetSeconds,
+      address: "/acoustics/play",
+      targets: event.targets,
+      args: [event.preset, 0, gain, 0]
+    };
+  });
+
+  const schedulerJson = {
+    version: "1.2",
+    default_lead_time: leadSeconds,
+    metadata: {
+      source_timeline_id: timeline.timeline_id
+    },
+    events: schedulerEvents
+  };
+
+  const baseTimeMillis = firstEventMillis - leadSeconds * 1000;
+  const baseTimeIso = new Date(baseTimeMillis).toISOString();
+
+  return {
+    schedulerJson,
+    leadSeconds,
+    baseTimeIso
+  };
+}
+
 export interface TimelineDispatchResult {
   requestId: string;
   events: TimelineEvent[];
@@ -79,9 +165,18 @@ export class TimelineService extends EventEmitter {
       this.emitUpdate();
       return;
     }
+    let artifacts: SchedulerArtifacts;
+    try {
+      artifacts = buildSchedulerArtifacts(timeline);
+    } catch (error) {
+      console.error("[TimelineService] timeline conversion failed:", error);
+      this.markEvents(requestId, "failed");
+      this.emitUpdate();
+      return;
+    }
     const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "timeline-"));
     const timelinePath = path.join(tempDir, `${timeline.timeline_id || requestId}.json`);
-    await fs.promises.writeFile(timelinePath, JSON.stringify(timeline, null, 2), "utf-8");
+    await fs.promises.writeFile(timelinePath, JSON.stringify(artifacts.schedulerJson, null, 2), "utf-8");
     const args = [
       timelinePath,
       "--host",
@@ -89,7 +184,9 @@ export class TimelineService extends EventEmitter {
       "--port",
       config.defaultSend.port.toString(),
       "--lead-time",
-      config.defaultSend.leadTimeSeconds.toString(),
+      artifacts.leadSeconds.toString(),
+      "--base-time",
+      artifacts.baseTimeIso,
       "--osc-config",
       config.oscConfigPath
     ];
@@ -140,4 +237,38 @@ export class TimelineService extends EventEmitter {
 
 export function createTimelineService(): TimelineService {
   return new TimelineService();
+}
+
+function maybeAutoShiftEvents(
+  events: TimelinePayload["events"],
+  leadSeconds: number
+): { events: TimelinePayload["events"]; shiftMillis: number } {
+  if (events.length === 0) {
+    return { events, shiftMillis: 0 };
+  }
+
+  const firstEventMillis = parseIsoToMillis(events[0].time_utc);
+  const lastEventMillis = parseIsoToMillis(events[events.length - 1].time_utc);
+  const durationMs = lastEventMillis - firstEventMillis;
+  if (durationMs > AUTO_SHIFT_MAX_DURATION_MS) {
+    return { events, shiftMillis: 0 };
+  }
+
+  const desiredFirstMillis = Date.now() + leadSeconds * 1000;
+  const earliestAllowed = desiredFirstMillis - AUTO_SHIFT_PAST_THRESHOLD_MS;
+  const latestAllowed = desiredFirstMillis + AUTO_SHIFT_FUTURE_THRESHOLD_MS;
+
+  if (firstEventMillis >= earliestAllowed && firstEventMillis <= latestAllowed) {
+    return { events, shiftMillis: 0 };
+  }
+
+  const shiftMillis = desiredFirstMillis - firstEventMillis;
+  const shiftedEvents = events.map((event) => {
+    const shiftedMillis = parseIsoToMillis(event.time_utc) + shiftMillis;
+    return {
+      ...event,
+      time_utc: new Date(shiftedMillis).toISOString()
+    };
+  });
+  return { events: shiftedEvents, shiftMillis };
 }
