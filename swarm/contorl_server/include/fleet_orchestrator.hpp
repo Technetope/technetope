@@ -10,6 +10,8 @@
 #include <vector>
 
 #include "cube_registry.hpp"
+#include "motion_controller.hpp"
+#include "relay_manager.hpp"
 
 namespace toio::control {
 
@@ -43,16 +45,27 @@ public:
         std::vector<GoalAssignment> active_goals;
     };
 
-    explicit FleetOrchestrator(CubeRegistry& registry);
+    FleetOrchestrator(CubeRegistry& registry, RelayManager& relay_manager, const MotionController& motion_controller);
 
     std::string assign_goal(const GoalRequest& request);
     void clear_goal(const std::string& cube_id);
     FleetState snapshot() const;
+    void tick(std::chrono::steady_clock::time_point now);
 
 private:
+    struct TrackedGoal {
+        GoalAssignment assignment;
+        std::chrono::steady_clock::time_point last_command{};
+        std::chrono::system_clock::time_point last_pose_sample{};
+    };
+
+    bool dispatch_command(const std::string& cube_id, const MotionController::MotionCommand& command);
+
     CubeRegistry& registry_;
+    RelayManager& relay_manager_;
+    const MotionController& motion_controller_;
     mutable std::mutex mutex_;
-    std::unordered_map<std::string, GoalAssignment> active_goals_;
+    std::unordered_map<std::string, TrackedGoal> active_goals_;
     std::deque<GoalAssignment> history_;
     std::size_t max_history_{64};
     std::atomic_uint64_t goal_counter_{0};

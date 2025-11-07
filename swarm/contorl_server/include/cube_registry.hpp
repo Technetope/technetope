@@ -70,6 +70,10 @@ public:
     std::optional<CubeState> get(std::string_view cube_id) const;
     std::vector<CubeState> snapshot() const;
     std::vector<HistoryEntry> history(std::size_t limit = 0) const;
+    std::optional<Pose> pose(std::string_view cube_id) const;
+    std::optional<LedState> led(std::string_view cube_id) const;
+    std::optional<std::chrono::system_clock::time_point> last_update(std::string_view cube_id) const;
+    std::vector<CubeState> cubes_with_goal() const;
 
 private:
     CubeState& ensure_locked(std::string_view cube_id);

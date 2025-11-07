@@ -143,4 +143,43 @@ std::vector<CubeRegistry::HistoryEntry> CubeRegistry::history(std::size_t limit)
     return result;
 }
 
+std::optional<CubeRegistry::Pose> CubeRegistry::pose(std::string_view cube_id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = cubes_.find(std::string(cube_id));
+    if (it == cubes_.end() || !it->second.has_position) {
+        return std::nullopt;
+    }
+    return it->second.position;
+}
+
+std::optional<CubeRegistry::LedState> CubeRegistry::led(std::string_view cube_id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = cubes_.find(std::string(cube_id));
+    if (it == cubes_.end()) {
+        return std::nullopt;
+    }
+    return it->second.led;
+}
+
+std::optional<std::chrono::system_clock::time_point> CubeRegistry::last_update(std::string_view cube_id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = cubes_.find(std::string(cube_id));
+    if (it == cubes_.end()) {
+        return std::nullopt;
+    }
+    return it->second.updated_at;
+}
+
+std::vector<CubeRegistry::CubeState> CubeRegistry::cubes_with_goal() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<CubeState> result;
+    result.reserve(cubes_.size());
+    for (const auto& [_, state] : cubes_) {
+        if (!state.goal_id.empty()) {
+            result.push_back(state);
+        }
+    }
+    return result;
+}
+
 }  // namespace toio::control

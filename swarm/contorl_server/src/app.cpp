@@ -15,8 +15,9 @@ ControlServerApp::ControlServerApp(boost::asio::io_context& io_context, ControlS
     : io_context_(io_context),
       config_(std::move(config)),
       cube_registry_(),
-      fleet_orchestrator_(cube_registry_),
       relay_manager_(io_context_, cube_registry_, config_),
+      motion_controller_(),
+      fleet_orchestrator_(cube_registry_, relay_manager_, motion_controller_),
       ws_server_(io_context_),
       command_gateway_(ws_server_, relay_manager_, cube_registry_, fleet_orchestrator_, config_.field) {}
 
@@ -54,11 +55,12 @@ void ControlServerApp::schedule_fleet_tick() {
     if (!fleet_timer_) {
         return;
     }
-    fleet_timer_->expires_after(std::chrono::seconds(1));
+    fleet_timer_->expires_after(std::chrono::milliseconds(50));
     fleet_timer_->async_wait([this](const boost::system::error_code& ec) {
         if (ec || !fleet_timer_) {
             return;
         }
+        fleet_orchestrator_.tick(std::chrono::steady_clock::now());
         command_gateway_.publish_fleet_state();
         schedule_fleet_tick();
     });

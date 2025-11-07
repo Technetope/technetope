@@ -9,6 +9,7 @@
 #include "command_gateway.hpp"
 #include "cube_registry.hpp"
 #include "fleet_orchestrator.hpp"
+#include "motion_controller.hpp"
 #include "relay_manager.hpp"
 #include "util/config_loader.hpp"
 #include "ws_server.hpp"
@@ -26,8 +27,9 @@ private:
     boost::asio::io_context& io_context_;
     ControlServerConfig config_;
     CubeRegistry cube_registry_;
-    FleetOrchestrator fleet_orchestrator_;
     RelayManager relay_manager_;
+    MotionController motion_controller_;
+    FleetOrchestrator fleet_orchestrator_;
     WsServer ws_server_;
     CommandGateway command_gateway_;
     std::unique_ptr<boost::asio::steady_timer> fleet_timer_;

@@ -15,6 +15,7 @@ add_executable(toio_control_server
     src/relay_manager.cpp
     src/cube_registry.cpp
     src/fleet_orchestrator.cpp
+    src/motion_controller.cpp
     src/ws_server.cpp
     src/command_gateway.cpp
     src/util/config_loader.cpp
