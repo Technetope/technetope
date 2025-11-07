@@ -1,22 +1,22 @@
 {
-  "version": "1.0",
-  "default_lead_time": 1.0,
+  "version": "1.1",
+  "default_lead_time": 3.5,
   "events": [
     {
       "offset": 0.0,
-      "address": "/play",
-      "args": ["pad_a", 0.8]
+      "address": "/acoustics/play",
+      "args": ["round_intro", 0, 0.85, 0]
     },
     {
-      "offset": 0.5,
-      "address": "/volume",
-      "args": [0.6]
+      "offset": 1.5,
+      "address": "/acoustics/play",
+      "targets": ["dev-001", "dev-002", "dev-003"],
+      "args": ["round_voice", 0, 0.8, 0]
     },
     {
-      "offset": 1.25,
-      "address": "/play",
-      "args": ["lead", 0.9]
+      "offset": 3.0,
+      "address": "/acoustics/stop",
+      "args": []
     }
   ]
 }
-

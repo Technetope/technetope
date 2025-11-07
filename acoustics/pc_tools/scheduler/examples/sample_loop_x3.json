@@ -1,0 +1,28 @@
+{
+  "version": "1.2",
+  "default_lead_time": 8.0,
+  "metadata": {
+    "title": "sample.wav sequential loop (5 devices × 3 passes)",
+    "description": "Play sample.wav on devices 1-5 at 1-second intervals, repeat every 25 seconds for three full passes.",
+    "loops": 1
+  },
+  "events": [
+    { "offset": 0.0,  "address": "/acoustics/play", "targets": ["dev-004b12c3a838"], "args": ["sample", 0, 1.0, 0] },
+    { "offset": 1.0,  "address": "/acoustics/play", "targets": ["dev-004b12c3c2a4"], "args": ["sample", 0, 1.0, 0] },
+    { "offset": 2.0,  "address": "/acoustics/play", "targets": ["dev-004b12c3c510"], "args": ["sample", 0, 1.0, 0] },
+    { "offset": 3.0,  "address": "/acoustics/play", "targets": ["dev-004b12c48530"], "args": ["sample", 0, 1.0, 0] },
+    { "offset": 4.0,  "address": "/acoustics/play", "targets": ["dev-004b12c49bb8"], "args": ["sample", 0, 1.0, 0] },
+
+    { "offset": 25.0, "address": "/acoustics/play", "targets": ["dev-004b12c3a838"], "args": ["sample", 0, 1.0, 0] },
+    { "offset": 26.0, "address": "/acoustics/play", "targets": ["dev-004b12c3c2a4"], "args": ["sample", 0, 1.0, 0] },
+    { "offset": 27.0, "address": "/acoustics/play", "targets": ["dev-004b12c3c510"], "args": ["sample", 0, 1.0, 0] },
+    { "offset": 28.0, "address": "/acoustics/play", "targets": ["dev-004b12c48530"], "args": ["sample", 0, 1.0, 0] },
+    { "offset": 29.0, "address": "/acoustics/play", "targets": ["dev-004b12c49bb8"], "args": ["sample", 0, 1.0, 0] },
+
+    { "offset": 50.0, "address": "/acoustics/play", "targets": ["dev-004b12c3a838"], "args": ["sample", 0, 1.0, 0] },
+    { "offset": 51.0, "address": "/acoustics/play", "targets": ["dev-004b12c3c2a4"], "args": ["sample", 0, 1.0, 0] },
+    { "offset": 52.0, "address": "/acoustics/play", "targets": ["dev-004b12c3c510"], "args": ["sample", 0, 1.0, 0] },
+    { "offset": 53.0, "address": "/acoustics/play", "targets": ["dev-004b12c48530"], "args": ["sample", 0, 1.0, 0] },
+    { "offset": 54.0, "address": "/acoustics/play", "targets": ["dev-004b12c49bb8"], "args": ["sample", 0, 1.0, 0] }
+  ]
+}

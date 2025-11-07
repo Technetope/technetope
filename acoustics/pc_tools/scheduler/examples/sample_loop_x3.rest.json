@@ -1,0 +1,97 @@
+{
+  "timeline_id": "sample-loop-x3",
+  "events": [
+    {
+      "time_utc": "2025-11-08T00:30:00.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c3a838"],
+      "lead_time_ms": 3000
+    },
+    {
+      "time_utc": "2025-11-08T00:30:01.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c3c2a4"],
+      "lead_time_ms": 3000
+    },
+    {
+      "time_utc": "2025-11-08T00:30:02.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c3c510"],
+      "lead_time_ms": 3000
+    },
+    {
+      "time_utc": "2025-11-08T00:30:03.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c48530"],
+      "lead_time_ms": 3000
+    },
+    {
+      "time_utc": "2025-11-08T00:30:04.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c49bb8"],
+      "lead_time_ms": 3000
+    },
+
+    {
+      "time_utc": "2025-11-08T00:30:25.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c3a838"],
+      "lead_time_ms": 3000
+    },
+    {
+      "time_utc": "2025-11-08T00:30:26.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c3c2a4"],
+      "lead_time_ms": 3000
+    },
+    {
+      "time_utc": "2025-11-08T00:30:27.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c3c510"],
+      "lead_time_ms": 3000
+    },
+    {
+      "time_utc": "2025-11-08T00:30:28.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c48530"],
+      "lead_time_ms": 3000
+    },
+    {
+      "time_utc": "2025-11-08T00:30:29.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c49bb8"],
+      "lead_time_ms": 3000
+    },
+
+    {
+      "time_utc": "2025-11-08T00:30:50.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c3a838"],
+      "lead_time_ms": 3000
+    },
+    {
+      "time_utc": "2025-11-08T00:30:51.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c3c2a4"],
+      "lead_time_ms": 3000
+    },
+    {
+      "time_utc": "2025-11-08T00:30:52.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c3c510"],
+      "lead_time_ms": 3000
+    },
+    {
+      "time_utc": "2025-11-08T00:30:53.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c48530"],
+      "lead_time_ms": 3000
+    },
+    {
+      "time_utc": "2025-11-08T00:30:54.000Z",
+      "preset": "sample",
+      "targets": ["dev-004b12c49bb8"],
+      "lead_time_ms": 3000
+    }
+  ]
+}

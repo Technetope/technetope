@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(CTest)
+
 option(ACOUSTICS_ENABLE_ASAN "Enable AddressSanitizer for local builds" OFF)
 
 if(ACOUSTICS_ENABLE_ASAN)
@@ -35,12 +37,80 @@ FetchContent_Declare(asio
     GIT_TAG asio-1-28-0
 )
 
+FetchContent_Declare(glfw
+    GIT_REPOSITORY https://github.com/glfw/glfw.git
+    GIT_TAG 3.3.9
+)
+
+FetchContent_Declare(imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.89.9-docking
+)
+
+FetchContent_Declare(implot
+    GIT_REPOSITORY https://github.com/epezent/implot.git
+    GIT_TAG v0.15
+)
+
+FetchContent_Declare(Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG v3.5.2
+)
 set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
 set(ASIO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(ASIO_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(ASIO_BUILD_DOC OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(fmt spdlog asio)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(fmt spdlog asio glfw)
+
+FetchContent_MakeAvailable(imgui implot)
+
+if (BUILD_TESTING)
+    FetchContent_MakeAvailable(Catch2)
+endif()
+
+add_library(imgui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+)
+
+target_include_directories(imgui
+    PUBLIC
+        ${imgui_SOURCE_DIR}
+        ${imgui_SOURCE_DIR}/backends
+        ${imgui_SOURCE_DIR}/misc/cpp
+)
+
+target_link_libraries(imgui
+    PUBLIC
+        glfw
+)
+
+add_library(implot STATIC
+    ${implot_SOURCE_DIR}/implot.cpp
+    ${implot_SOURCE_DIR}/implot_demo.cpp
+    ${implot_SOURCE_DIR}/implot_items.cpp
+)
+
+target_include_directories(implot
+    PUBLIC
+        ${implot_SOURCE_DIR}
+)
+
+target_link_libraries(implot
+    PUBLIC
+        imgui
+)
 
 if (NOT TARGET asio::asio)
     add_library(asio INTERFACE)
@@ -51,3 +121,4 @@ endif()
 add_subdirectory(libs)
 add_subdirectory(scheduler)
 add_subdirectory(monitor)
+add_subdirectory(gui)
