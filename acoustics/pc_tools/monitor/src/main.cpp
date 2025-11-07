@@ -7,13 +7,22 @@
 #include <asio.hpp>
 #include <spdlog/spdlog.h>
 
+#include "json.hpp"
+
+#include <algorithm>
+#include <array>
 #include <atomic>
+#include <cctype>
+#include <condition_variable>
 #include <cmath>
 #include <csignal>
 #include <cstdint>
 #include <ctime>
+#include <cstring>
+#include <deque>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -25,6 +34,8 @@
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
+
+using json = nlohmann::json;
 
 namespace {
 
@@ -42,12 +53,498 @@ struct MonitorOptions {
     bool quiet{false};
     bool debug{false};
     std::filesystem::path registryPath{"state/devices.json"};
+    bool wsEnabled{false};
+    std::string wsHost{"127.0.0.1"};
+    std::uint16_t wsPort{48080};
+    std::string wsPath{"/ws/events"};
 };
 
 struct DeviceStats {
     std::uint64_t count{0};
     double meanMs{0.0};
     double m2{0.0};
+};
+
+std::string formatIso8601(std::chrono::system_clock::time_point tp) {
+    auto timeT = std::chrono::system_clock::to_time_t(tp);
+    std::tm utc{};
+#if defined(_WIN32)
+    gmtime_s(&utc, &timeT);
+#else
+    gmtime_r(&timeT, &utc);
+#endif
+    char buffer[32];
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S", &utc);
+    auto micros = std::chrono::duration_cast<std::chrono::microseconds>(tp.time_since_epoch()) % 1'000'000;
+    std::ostringstream oss;
+    oss << buffer << "." << std::setw(6) << std::setfill('0') << micros.count() << "Z";
+    return oss.str();
+}
+
+class Sha1 {
+public:
+    void update(const std::uint8_t* data, std::size_t len) {
+        bitLength_ += static_cast<std::uint64_t>(len) * 8ULL;
+        while (len > 0) {
+            const std::size_t toCopy = std::min<std::size_t>(64 - bufferSize_, len);
+            std::memcpy(buffer_.data() + bufferSize_, data, toCopy);
+            bufferSize_ += toCopy;
+            data += toCopy;
+            len -= toCopy;
+            if (bufferSize_ == 64) {
+                processBlock(buffer_.data());
+                bufferSize_ = 0;
+            }
+        }
+    }
+
+    std::array<std::uint8_t, 20> finalize() {
+        buffer_[bufferSize_++] = 0x80;
+        if (bufferSize_ > 56) {
+            while (bufferSize_ < 64) {
+                buffer_[bufferSize_++] = 0x00;
+            }
+            processBlock(buffer_.data());
+            bufferSize_ = 0;
+        }
+        while (bufferSize_ < 56) {
+            buffer_[bufferSize_++] = 0x00;
+        }
+        for (int i = 7; i >= 0; --i) {
+            buffer_[bufferSize_++] = static_cast<std::uint8_t>((bitLength_ >> (static_cast<std::uint64_t>(i) * 8ULL)) & 0xFFULL);
+        }
+        processBlock(buffer_.data());
+
+        std::array<std::uint8_t, 20> digest{};
+        for (int i = 0; i < 5; ++i) {
+            digest[i * 4 + 0] = static_cast<std::uint8_t>((state_[i] >> 24) & 0xFF);
+            digest[i * 4 + 1] = static_cast<std::uint8_t>((state_[i] >> 16) & 0xFF);
+            digest[i * 4 + 2] = static_cast<std::uint8_t>((state_[i] >> 8) & 0xFF);
+            digest[i * 4 + 3] = static_cast<std::uint8_t>((state_[i]) & 0xFF);
+        }
+        return digest;
+    }
+
+private:
+    static std::uint32_t leftRotate(std::uint32_t value, std::uint32_t bits) {
+        return (value << bits) | (value >> (32 - bits));
+    }
+
+    void processBlock(const std::uint8_t* block) {
+        std::uint32_t w[80];
+        for (int i = 0; i < 16; ++i) {
+            w[i] = (static_cast<std::uint32_t>(block[i * 4 + 0]) << 24) |
+                   (static_cast<std::uint32_t>(block[i * 4 + 1]) << 16) |
+                   (static_cast<std::uint32_t>(block[i * 4 + 2]) << 8) |
+                   (static_cast<std::uint32_t>(block[i * 4 + 3]));
+        }
+        for (int i = 16; i < 80; ++i) {
+            w[i] = leftRotate(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
+        }
+
+        std::uint32_t a = state_[0];
+        std::uint32_t b = state_[1];
+        std::uint32_t c = state_[2];
+        std::uint32_t d = state_[3];
+        std::uint32_t e = state_[4];
+
+        for (int i = 0; i < 80; ++i) {
+            std::uint32_t f = 0;
+            std::uint32_t k = 0;
+            if (i < 20) {
+                f = (b & c) | ((~b) & d);
+                k = 0x5A827999;
+            } else if (i < 40) {
+                f = b ^ c ^ d;
+                k = 0x6ED9EBA1;
+            } else if (i < 60) {
+                f = (b & c) | (b & d) | (c & d);
+                k = 0x8F1BBCDC;
+            } else {
+                f = b ^ c ^ d;
+                k = 0xCA62C1D6;
+            }
+            std::uint32_t temp = leftRotate(a, 5) + f + e + k + w[i];
+            e = d;
+            d = c;
+            c = leftRotate(b, 30);
+            b = a;
+            a = temp;
+        }
+
+        state_[0] += a;
+        state_[1] += b;
+        state_[2] += c;
+        state_[3] += d;
+        state_[4] += e;
+    }
+
+    std::array<std::uint8_t, 64> buffer_{};
+    std::size_t bufferSize_{0};
+    std::uint64_t bitLength_{0};
+    std::array<std::uint32_t, 5> state_{{
+        0x67452301u,
+        0xEFCDAB89u,
+        0x98BADCFEu,
+        0x10325476u,
+        0xC3D2E1F0u
+    }};
+};
+
+std::array<std::uint8_t, 20> sha1Digest(const std::uint8_t* data, std::size_t len) {
+    Sha1 sha;
+    sha.update(data, len);
+    return sha.finalize();
+}
+
+std::string base64Encode(const std::uint8_t* data, std::size_t len) {
+    static constexpr char kAlphabet[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz"
+        "0123456789+/";
+    std::string encoded;
+    encoded.reserve(((len + 2) / 3) * 4);
+    std::size_t index = 0;
+    while (index < len) {
+        const std::size_t chunk = std::min<std::size_t>(3, len - index);
+        std::uint32_t block = 0;
+        for (std::size_t i = 0; i < chunk; ++i) {
+            block |= static_cast<std::uint32_t>(data[index + i]) << (16 - static_cast<std::uint32_t>(i) * 8);
+        }
+        encoded.push_back(kAlphabet[(block >> 18) & 0x3F]);
+        encoded.push_back(kAlphabet[(block >> 12) & 0x3F]);
+        if (chunk >= 2) {
+            encoded.push_back(kAlphabet[(block >> 6) & 0x3F]);
+        } else {
+            encoded.push_back('=');
+        }
+        if (chunk == 3) {
+            encoded.push_back(kAlphabet[block & 0x3F]);
+        } else {
+            encoded.push_back('=');
+        }
+        index += chunk;
+    }
+    return encoded;
+}
+
+std::string computeWebSocketAcceptKey(const std::string& clientKey) {
+    static constexpr char kGuid[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    std::string input = clientKey + kGuid;
+    auto digest = sha1Digest(reinterpret_cast<const std::uint8_t*>(input.data()), input.size());
+    return base64Encode(digest.data(), digest.size());
+}
+
+class WebSocketBroadcaster {
+public:
+    WebSocketBroadcaster(const std::string& host, std::uint16_t port, std::string path)
+        : endpoint_(asio::ip::make_address(host), port), path_(std::move(path)) {}
+
+    ~WebSocketBroadcaster() {
+        stop();
+    }
+
+    void start() {
+        if (running_.load()) {
+            return;
+        }
+        acceptor_ = std::make_unique<asio::ip::tcp::acceptor>(ioContext_);
+        acceptor_->open(endpoint_.protocol());
+        acceptor_->set_option(asio::socket_base::reuse_address(true));
+        acceptor_->bind(endpoint_);
+        acceptor_->listen();
+
+        running_.store(true);
+        acceptThread_ = std::thread([this]() { acceptLoop(); });
+        dispatchThread_ = std::thread([this]() { dispatchLoop(); });
+        spdlog::info("WebSocket broadcaster listening on {}:{}", endpoint_.address().to_string(), endpoint_.port());
+    }
+
+    void stop() {
+        if (!running_.exchange(false)) {
+            return;
+        }
+        {
+            std::lock_guard queueLock(queueMutex_);
+            queueCv_.notify_all();
+        }
+        if (acceptor_) {
+            std::error_code ec;
+            acceptor_->close(ec);
+        }
+        if (acceptThread_.joinable()) {
+            acceptThread_.join();
+        }
+        if (dispatchThread_.joinable()) {
+            dispatchThread_.join();
+        }
+        std::lock_guard clientLock(clientsMutex_);
+        for (auto& client : clients_) {
+            if (client && client->socket && client->socket->is_open()) {
+                std::error_code ec;
+                client->socket->close(ec);
+            }
+        }
+        clients_.clear();
+        acceptor_.reset();
+    }
+
+    void broadcast(const json& payload) {
+        if (!running_.load()) {
+            return;
+        }
+        enqueueMessage(payload.dump());
+    }
+
+    void setDeviceCountProvider(std::function<std::size_t()> provider) {
+        deviceCountProvider_ = std::move(provider);
+    }
+
+private:
+    struct Client {
+        explicit Client(std::shared_ptr<asio::ip::tcp::socket> sock)
+            : socket(std::move(sock)) {}
+        std::shared_ptr<asio::ip::tcp::socket> socket;
+        std::mutex writeMutex;
+    };
+
+    void enqueueMessage(std::string message) {
+        {
+            std::lock_guard lock(queueMutex_);
+            queue_.push_back(std::move(message));
+        }
+        queueCv_.notify_one();
+    }
+
+    void acceptLoop() {
+        while (running_.load()) {
+            asio::ip::tcp::socket socket(ioContext_);
+            std::error_code ec;
+            acceptor_->accept(socket, ec);
+            if (ec) {
+                if (running_.load()) {
+                    spdlog::warn("WebSocket accept error: {}", ec.message());
+                }
+                continue;
+            }
+            std::thread(&WebSocketBroadcaster::serveClient, this, std::move(socket)).detach();
+        }
+    }
+
+    void serveClient(asio::ip::tcp::socket socket) {
+        try {
+            auto request = readHttpRequest(socket);
+            const auto requestLineEnd = request.find("\r\n");
+            if (requestLineEnd == std::string::npos) {
+                throw std::runtime_error("Malformed HTTP request");
+            }
+            const std::string requestLine = request.substr(0, requestLineEnd);
+            const std::string path = parseRequestPath(requestLine);
+            if (path != path_) {
+                sendHttpError(socket, "404 Not Found", "Unsupported path");
+                return;
+            }
+            const auto clientKey = getHeaderValue(request, "sec-websocket-key");
+            if (clientKey.empty()) {
+                sendHttpError(socket, "400 Bad Request", "Missing Sec-WebSocket-Key");
+                return;
+            }
+            const auto acceptKey = computeWebSocketAcceptKey(clientKey);
+            sendHandshake(socket, acceptKey);
+            auto client = std::make_shared<Client>(std::make_shared<asio::ip::tcp::socket>(std::move(socket)));
+            {
+                std::lock_guard lock(clientsMutex_);
+                clients_.push_back(client);
+            }
+            sendHello(client);
+        } catch (const std::exception& ex) {
+            spdlog::warn("WebSocket client setup failed: {}", ex.what());
+        }
+    }
+
+    void dispatchLoop() {
+        std::unique_lock lock(queueMutex_);
+        while (running_.load()) {
+            queueCv_.wait(lock, [&]() { return !running_.load() || !queue_.empty(); });
+            if (!running_.load()) {
+                break;
+            }
+            std::string message = std::move(queue_.front());
+            queue_.pop_front();
+            lock.unlock();
+            sendToClients(message);
+            lock.lock();
+        }
+    }
+
+    void sendToClients(const std::string& message) {
+        auto frame = buildFrame(message);
+        std::lock_guard lock(clientsMutex_);
+        for (auto it = clients_.begin(); it != clients_.end();) {
+            auto client = *it;
+            if (!client || !client->socket || !client->socket->is_open()) {
+                it = clients_.erase(it);
+                continue;
+            }
+            std::error_code ec;
+            {
+                std::lock_guard writeLock(client->writeMutex);
+                asio::write(*client->socket, asio::buffer(frame), ec);
+            }
+            if (ec) {
+                spdlog::debug("WebSocket send failed: {}", ec.message());
+                std::error_code closeEc;
+                client->socket->close(closeEc);
+                it = clients_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    static std::vector<std::uint8_t> buildFrame(const std::string& payload) {
+        std::vector<std::uint8_t> frame;
+        const std::size_t len = payload.size();
+        frame.reserve(2 + len + 8);
+        frame.push_back(0x81);  // FIN + text frame
+        if (len <= 125) {
+            frame.push_back(static_cast<std::uint8_t>(len));
+        } else if (len <= 0xFFFF) {
+            frame.push_back(126);
+            frame.push_back(static_cast<std::uint8_t>((len >> 8) & 0xFF));
+            frame.push_back(static_cast<std::uint8_t>(len & 0xFF));
+        } else {
+            frame.push_back(127);
+            for (int i = 7; i >= 0; --i) {
+                frame.push_back(static_cast<std::uint8_t>((len >> (i * 8)) & 0xFF));
+            }
+        }
+        frame.insert(frame.end(), payload.begin(), payload.end());
+        return frame;
+    }
+
+    static std::string readHttpRequest(asio::ip::tcp::socket& socket) {
+        std::string request;
+        std::array<char, 1024> buffer{};
+        while (request.find("\r\n\r\n") == std::string::npos) {
+            std::error_code ec;
+            std::size_t bytes = socket.read_some(asio::buffer(buffer), ec);
+            if (ec) {
+                throw std::runtime_error("HTTP read failed: " + ec.message());
+            }
+            request.append(buffer.data(), bytes);
+            if (request.size() > 16 * 1024) {
+                throw std::runtime_error("HTTP header too large");
+            }
+        }
+        return request;
+    }
+
+    static std::string getHeaderValue(const std::string& request, const std::string& key) {
+        auto lowerKey = key;
+        std::transform(lowerKey.begin(), lowerKey.end(), lowerKey.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        std::istringstream stream(request);
+        std::string line;
+        while (std::getline(stream, line)) {
+            if (line.size() >= 2 && line.back() == '\r') {
+                line.pop_back();
+            }
+            auto colon = line.find(':');
+            if (colon == std::string::npos) {
+                continue;
+            }
+            std::string headerKey = line.substr(0, colon);
+            std::string value = line.substr(colon + 1);
+            auto normalize = [](std::string s) {
+                s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !std::isspace(ch); }));
+                s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), s.end());
+                std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                return s;
+            };
+            if (normalize(headerKey) == lowerKey) {
+                value.erase(value.begin(), std::find_if(value.begin(), value.end(), [](unsigned char ch) { return !std::isspace(ch); }));
+                value.erase(std::find_if(value.rbegin(), value.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), value.end());
+                return value;
+            }
+        }
+        return {};
+    }
+
+    static std::string parseRequestPath(const std::string& requestLine) {
+        constexpr char kGet[] = "GET ";
+        if (requestLine.rfind(kGet, 0) != 0) {
+            throw std::runtime_error("Unsupported HTTP verb");
+        }
+        auto pathStart = sizeof(kGet) - 1;
+        auto spacePos = requestLine.find(' ', pathStart);
+        if (spacePos == std::string::npos) {
+            throw std::runtime_error("Malformed request line");
+        }
+        return requestLine.substr(pathStart, spacePos - pathStart);
+    }
+
+    static void sendHttpError(asio::ip::tcp::socket& socket, const std::string& status, const std::string& body) {
+        std::ostringstream oss;
+        oss << "HTTP/1.1 " << status << "\r\n"
+            << "Content-Type: text/plain\r\n"
+            << "Content-Length: " << body.size() << "\r\n"
+            << "Connection: close\r\n\r\n"
+            << body;
+        std::error_code ec;
+        asio::write(socket, asio::buffer(oss.str()), ec);
+        socket.close(ec);
+    }
+
+    static void sendHandshake(asio::ip::tcp::socket& socket, const std::string& acceptKey) {
+        std::ostringstream oss;
+        oss << "HTTP/1.1 101 Switching Protocols\r\n"
+            << "Upgrade: websocket\r\n"
+            << "Connection: Upgrade\r\n"
+            << "Sec-WebSocket-Accept: " << acceptKey << "\r\n"
+            << "\r\n";
+        asio::write(socket, asio::buffer(oss.str()));
+    }
+
+    void sendHello(const std::shared_ptr<Client>& client) {
+        if (!client || !client->socket || !client->socket->is_open()) {
+            return;
+        }
+        std::size_t deviceCount = 0;
+        if (deviceCountProvider_) {
+            deviceCount = deviceCountProvider_();
+        }
+        json hello{
+            {"type", "hello"},
+            {"device_count", deviceCount}
+        };
+        auto frame = buildFrame(hello.dump());
+        std::error_code ec;
+        {
+            std::lock_guard writeLock(client->writeMutex);
+            asio::write(*client->socket, asio::buffer(frame), ec);
+        }
+        if (ec) {
+            std::lock_guard lock(clientsMutex_);
+            auto it = std::find(clients_.begin(), clients_.end(), client);
+            if (it != clients_.end()) {
+                clients_.erase(it);
+            }
+        }
+    }
+
+    asio::ip::tcp::endpoint endpoint_;
+    std::string path_;
+    std::atomic_bool running_{false};
+    asio::io_context ioContext_;
+    std::unique_ptr<asio::ip::tcp::acceptor> acceptor_;
+    std::thread acceptThread_;
+    std::thread dispatchThread_;
+    std::mutex clientsMutex_;
+    std::vector<std::shared_ptr<Client>> clients_;
+    std::mutex queueMutex_;
+    std::condition_variable queueCv_;
+    std::deque<std::string> queue_;
+    std::function<std::size_t()> deviceCountProvider_;
 };
 
 std::chrono::system_clock::time_point secondsToTimePoint(double seconds) {
@@ -184,7 +681,7 @@ void emitSample(std::ostream& out,
         << '\n';
 }
 
-void processMessage(const acoustics::osc::Message& message,
+std::optional<json> processMessage(const acoustics::osc::Message& message,
                     const MonitorOptions& options,
                     std::unordered_map<std::string, DeviceStats>& stats,
                     std::ofstream* csvStream,
@@ -206,7 +703,7 @@ void processMessage(const acoustics::osc::Message& message,
                      ex.what(),
                      message.address,
                      argStream.str());
-        return;
+        return std::nullopt;
     }
 
     auto arrival = std::chrono::system_clock::now();
@@ -253,6 +750,22 @@ void processMessage(const acoustics::osc::Message& message,
         emitSample(*csvStream, data, latencyMs, arrival);
         csvStream->flush();
     }
+
+    json payload{
+        {"type", "heartbeat"},
+        {"device_id", data.deviceId},
+        {"sequence", data.sequence},
+        {"latency_ms", latencyMs},
+        {"timestamp", formatIso8601(arrival)},
+        {"sent_timestamp", formatIso8601(secondsToTimePoint(data.sentSeconds))}
+    };
+    if (data.queueSize) {
+        payload["queue_depth"] = *data.queueSize;
+    }
+    if (data.isPlaying.has_value()) {
+        payload["is_playing"] = *data.isPlaying;
+    }
+    return payload;
 }
 
 void processAnnounce(const acoustics::osc::Message& message,
@@ -337,11 +850,12 @@ void processAnnounce(const acoustics::osc::Message& message,
     }
 }
 
-void processPacket(const acoustics::osc::Packet& packet,
+std::vector<json> processPacket(const acoustics::osc::Packet& packet,
                    const MonitorOptions& options,
                    std::unordered_map<std::string, DeviceStats>& stats,
                    std::ofstream* csvStream,
                    acoustics::common::DeviceRegistry* registry) {
+    std::vector<json> events;
     auto handle = [&](const acoustics::osc::Message& msg) {
         if (spdlog::should_log(spdlog::level::debug)) {
             std::ostringstream argStream;
@@ -357,7 +871,9 @@ void processPacket(const acoustics::osc::Packet& packet,
             processAnnounce(msg, options, *registry);
             return;
         }
-        processMessage(msg, options, stats, csvStream, registry);
+        if (auto payload = processMessage(msg, options, stats, csvStream, registry)) {
+            events.push_back(std::move(*payload));
+        }
     };
 
     if (const auto* message = std::get_if<acoustics::osc::Message>(&packet)) {
@@ -368,6 +884,7 @@ void processPacket(const acoustics::osc::Packet& packet,
             handle(msg);
         }
     }
+    return events;
 }
 
 void printSummary(const std::unordered_map<std::string, DeviceStats>& stats) {
@@ -408,6 +925,10 @@ int main(int argc, char** argv) {
     app.add_flag("--quiet", options.quiet, "Suppress console output");
     app.add_flag("--debug", options.debug, "Enable verbose debug logging");
     app.add_option("--registry", options.registryPath, "Device registry JSON path");
+    app.add_flag("--ws", options.wsEnabled, "Enable WebSocket event broadcasting");
+    app.add_option("--ws-host", options.wsHost, "WebSocket listen host (default: 127.0.0.1)");
+    app.add_option("--ws-port", options.wsPort, "WebSocket listen port (default: 48080)");
+    app.add_option("--ws-path", options.wsPath, "WebSocket path (default: /ws/events)");
 
     try {
         app.parse(argc, argv);
@@ -433,6 +954,18 @@ int main(int argc, char** argv) {
 
         acoustics::common::DeviceRegistry registry(options.registryPath);
         registry.load();
+        std::unique_ptr<WebSocketBroadcaster> wsBroadcaster;
+        if (options.wsEnabled) {
+            try {
+                wsBroadcaster = std::make_unique<WebSocketBroadcaster>(options.wsHost, options.wsPort, options.wsPath);
+                wsBroadcaster->setDeviceCountProvider([&registry]() {
+                    return registry.snapshot().size();
+                });
+                wsBroadcaster->start();
+            } catch (const std::exception& ex) {
+                throw std::runtime_error(std::string("Failed to start WebSocket broadcaster: ") + ex.what());
+            }
+        }
 
         std::unordered_map<std::string, DeviceStats> stats;
         std::mutex stateMutex;
@@ -446,19 +979,29 @@ int main(int argc, char** argv) {
         }
 
         acoustics::osc::IoContextRunner runner;
+        WebSocketBroadcaster* wsRaw = wsBroadcaster.get();
+
         acoustics::osc::OscListener listener(
             runner.context(),
             acoustics::osc::OscListener::Endpoint(listenAddress, options.port),
             [&](const acoustics::osc::Packet& packet, const acoustics::osc::OscListener::Endpoint&) {
-                std::lock_guard lock(stateMutex);
-                processPacket(packet,
-                              options,
-                              stats,
-                              csvStream ? csvStream.get() : nullptr,
-                              &registry);
-                ++processed;
-                if (options.maxPackets > 0 && processed.load() >= options.maxPackets) {
-                    g_shouldStop.store(true);
+                std::vector<json> events;
+                {
+                    std::lock_guard lock(stateMutex);
+                    events = processPacket(packet,
+                                           options,
+                                           stats,
+                                           csvStream ? csvStream.get() : nullptr,
+                                           &registry);
+                    ++processed;
+                    if (options.maxPackets > 0 && processed.load() >= options.maxPackets) {
+                        g_shouldStop.store(true);
+                    }
+                }
+                if (wsRaw) {
+                    for (auto& evt : events) {
+                        wsRaw->broadcast(evt);
+                    }
                 }
             });
 
@@ -474,6 +1017,9 @@ int main(int argc, char** argv) {
 
         listener.stop();
         runner.stop();
+        if (wsBroadcaster) {
+            wsBroadcaster->stop();
+        }
 
         if (!options.quiet) {
             std::lock_guard lock(stateMutex);

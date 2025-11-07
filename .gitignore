@@ -5,6 +5,16 @@ Thumbs.db
 *.swo
 *.orig
 
+# Node workspace artifacts
+node_modules/
+acoustics/web/**/node_modules/
+acoustics/web/**/dist/
+acoustics/web/**/.tsbuildinfo
+acoustics/web/backend/config.json
+logs/gui_dashboard_metrics.jsonl
+logs/gui_audit.jsonl
+logs/gui_event_log.csv
+
 # Python artifacts
 __pycache__/
 *.py[cod]

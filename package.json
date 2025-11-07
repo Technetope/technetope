@@ -1,0 +1,9 @@
+{
+  "name": "biotope-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "acoustics/web/backend",
+    "acoustics/web/dashboard"
+  ]
+}

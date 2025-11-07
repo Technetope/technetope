@@ -2,6 +2,8 @@
 
 M5 音響システムを安全に遠隔運用するための Web GUI ダッシュボード要件を定義する。GUI はモニタ／スケジューラの補助ツールではなく、「デバイス状態の参照」「単発発火」「タイムライン配信」「診断」の単一ハブとして機能する。仕様変更時は必ず `acoustics/docs/masterdocs.md`・`acoustics/docs/gui_spec.md`・本書を同時に更新する。
 
+2025 年版では「ネイティブは意味ない」という現場レビューに従い、GUI は TypeScript/React などで構築する Web SPA を正とし、ImGui ベースのネイティブ実装はリファレンス扱いとする。WebSocket API と UI モジュールを本書で同時に定義し、Scheduler/Monitor/CLI との主要なオペレーションはブラウザから完結させる。実装リポジトリは `acoustics/web/backend`（API/ブリッジ）と `acoustics/web/dashboard`（React/Vite SPA）に配置し、本書の更新と同時に同期させる。
+
 ---
 
 ## 0. 参照ドキュメント
@@ -38,44 +40,65 @@ M5 音響システムを安全に遠隔運用するための Web GUI ダッシ�
 | --- | --- | --- | --- |
 | Data Intake | `state/devices.json`・Heartbeat・Diagnostics を WebSocket/REST で取得 | `OscTransport`, `MonitorBridge` | 500 ms ポーリング + イベント駆動。接続喪失時は指数バックオフ。 |
 | State Store | 最新スナップショットと履歴 5 分分を保持 | `DeviceStore`, `TimelineStore` | UI スレッドとの同期に lock-free SPSC queue を使用。 |
-| UI Rendering | ImGui Docking＋各パネル | `GuiDashboard`, `Panels::*` | 60 FPS を維持、遅延はステータスバーで可視化。 |
+| UI Rendering | Web SPA (React/Vite 等) の Docking ライクレイアウト | `dashboard-web`, `components/*` | 60 FPS 相当の滑らかさを保ちつつ、遅延はヘッダーとトーストで可視化。 |
 | Command Dispatch | Timeline/単発発火/設定変更 | `CommandBus`, `OscSender` | 送信結果をログストリームへ publish。 |
 
 ---
 
 ## 3. UI モジュール要件
+Web SPA 版では 1 ページのダッシュボードを Docking ライクに構成し、WebSocket で同期された最新 state を各パネルが即時描画する。  
+
+**GUI 必須要件（Web-first）**  
+- **デバイスブロック一覧**: `state/devices.json` と Heartbeat をカード表示し、`device_id`/IP/Port/最終 heartbeat/RSSI/バッテリ/遅延統計/タグを 5 秒以内で反映。遅延は <50 ms=緑、50–150 ms=黄、>150 ms=赤で色分け。  
+- **NTP 時刻・タイムラインビュー**: 上部で NTP サーバー時刻を常時表示し、直近送信予定（時刻・ターゲット・プリセット・リードタイム）をテーブル化。JSON アップロード → プレビュー → 送信の 3 ステップを GUI から完結。  
+- **送受信モニタ**: `/ws/sendlog` と `/ws/events` をリアルタイムで流し、「いつ・どこへ・何を送ったか／受けたか」を時系列で追跡。フィルタ・一時停止・CSV エクスポートを提供。  
+- **即時発火操作**: preset_id、対象デバイス（単体/グループ）、リードタイム秒（デフォルト 3 秒）で単発発火し、「Enable fire」チェック → Fire ボタンの 2 段階で安全性を担保。  
+- **診断パネル**: `/diagnostics/reject` や遅延アラートを一覧表示し、device_id・理由・時刻を提示。行クリックで該当デバイスカードへジャンプ。  
+- **タイムライン参照**: 実際に送られる／送られたイベントをガント or テーブルで可視化し、preset/target/予定時刻/ステータス/リードタイムを保持。失敗時は再送ボタンを提供。
+
 1. **トップバー（固定ヘッダー）**  
-   - NTP 現在時刻を UTC/JST で並記。  
-   - Scheduler・Monitor・Secrets ロード状態（OK/NG）。  
-   - 過去 60 分の送信成功/失敗/拒否数をミニグラフ表示。
+   - 中央に NTP 現在時刻を UTC/JST 並記、隣に NTP 偏差と `request_id` タグを表示。  
+   - Scheduler・Monitor・Secrets・Time API の接続状態をバッジで提示（OK/NG/Retry）。  
+   - 直近 60 分の送信成功/失敗/拒否サマリと「Next event」(時刻/ターゲット) をミニカードで並べる。
 
 2. **デバイスダッシュボード**  
    - 情報源: `state/devices.json` + Heartbeat ストリーム。  
-   - カード項目: `device_id`、Alias、IP:Port、最終 heartbeat（ISO8601）、RSSI、遅延平均/最大、NTP 偏差、タグ。  
-   - 遅延に応じた色分け（緑 <50 ms / 黄 50–150 ms / 赤 >150 ms）。5 秒更新が無い場合は “offline”。  
-   - カード右上にテスト信号ボタン（短いプリセット送信）。結果をカード下部に記録 (`Last test hh:mm:ss`）。
+   - カード項目: `device_id`, Alias, IP:Port, 最終 heartbeat（ISO8601）, RSSI, バッテリ %, 遅延平均/最大, NTP 偏差, タグ。  
+   - 遅延しきい値に応じた背景色、5 秒更新が無い場合は “Offline” バッジ。クリックで詳細サイドパネルを開き、過去 5 分の遅延チャートを表示。  
+   - カード右上にテスト信号（短いプリセット）ボタン。結果はカード下部に `Last test hh:mm:ss / status` として残す。
 
 3. **タイムライン & NTP 軸ビュー**  
-   - 予定イベントをテーブル＋ガントで表示（列: 予定時刻 NTP, 残り時間, Target, Preset, リードタイム, 状態）。  
-   - JSON アップロード → プレビュー → `Send Timeline` ボタン。`--dry-run` 相当のタイムラインシミュレーションを提供。  
-   - ガント上でドラッグしてリードタイムを調整すると REST 送信時に自動補正。
+   - 予定イベントをテーブル＋ガントで表示（列: 予定時刻 NTP, 残り時間, Target, Preset, リードタイム, 状態, request_id）。  
+   - JSON アップロード → プレビュー → `Send Timeline` ボタン。Uploader で検証（JSON schema、NTP 順序、重複ターゲット）し、`--dry-run` 相当のシミュレーションをブラウザ上で提示。  
+   - ガント上でドラッグしたリードタイム差分は REST 送信時に自動補正し、補正量をツールチップと監査ログへ書き出す。
 
 4. **送受信ログパネル**  
-   - WebSocket (`/ws/events`, `/ws/sendlog`) からリアルタイム表示。  
-   - フィルタ（device_id/preset/severity/期間）と一時停止、`logs/gui_dashboard_sendlog.csv` へのエクスポート。  
-   - Fatal イベントはデスクトップ通知とバッジ表示。
+   - WebSocket (`/ws/events`, `/ws/sendlog`) からリアルタイム表示し、送信ログと受信ログのタブを切替。  
+   - フィルタ（device_id/preset/severity/期間）と一時停止、`logs/gui_dashboard_sendlog.csv` へのエクスポートを提供。  
+   - Fatal/WARN を受信したらカードとタイムラインをハイライトし、Desktop/Browser 通知＋ヘッダーバッジで即表示。  
+   - 行クリックで関連デバイスカードかタイムラインイベントへスクロール。
 
 5. **単発発火コンソール**  
-   - フォーム: Target（デバイス or グループ）、Preset、Lead 秒、ゲイン、再生時間上限。  
-   - 「Arm」チェックボックス + 「Fire」ボタンの二段階。  
-   - 暗号鍵は `Secrets` から自動選択、鍵不一致時は即エラー。  
-   - 送信完了までリードタイム残りをカウントダウン表示。
+   - フォーム: Target（デバイス or グループ）、Preset、Lead 秒（デフォルト 3 秒）、ゲイン、再生時間上限。  
+   - 「Enable fire」チェック + 「Fire」ボタンの二段階 + 最終確認モーダル。  
+   - 暗号鍵は `Secrets` から自動選択し、鍵ハッシュ mismatch は即エラー。  
+   - 送信完了までリードタイム残りをカウントダウン表示し、完了後は `/ws/sendlog` のレスポンスを横カードに表示。
 
 6. **診断センター**  
-   - `/diagnostics/reject` リスト（時刻、device_id、理由、関連イベント ID、推奨アクション）。  
-   - 行クリックでデバイスカードへジャンプ。  
+   - `/diagnostics/reject` リスト（時刻、device_id、理由、関連イベント ID、推奨アクション）と遅延アラートをまとめて表示。  
+   - 行クリックでデバイスカードへジャンプし、必要ならフォーカス枠と振動エフェクトで明示。  
    - 備考欄でオペレーターがメモを残せる（`state/diagnostics_notes.json` に保存）。  
-   - 重大度 High が一定件数を超えるとトップバーに警告バッジ。
+   - 重大度 High が一定件数を超えるとトップバーに警告バッジと再接続誘導を出す。
+
+7. **タイムライン参照／再送ボード**  
+   - 実際に送信された/送信予定のイベントを NTP ベースでスタック表示し、`preset`, `target(s)`, 予定時刻, `send_status`, `delivered_at`, `latency_ms` を列挙。  
+   - `/ws/sendlog` と `/ws/events` の両方を突合し、成功/失敗/拒否を色付きで示す。  
+   - 失敗イベントは「Requeue」「Retry now」ボタンを提供し、再送要求は `request_id` を引き継いで監査ログへ残す。  
+   - ガントでの範囲選択 → CSV/JSON エクスポートを許可。
+
+### 不要/後回し
+- WAV 波形・スペクトラム可視化などの周波数分析 UI。  
+- 複雑なアラームルールエディタ（固定しきい値 + ハードコード済み通知で十分）。
 
 ---
 
@@ -89,6 +112,8 @@ M5 音響システムを安全に遠隔運用するための Web GUI ダッシ�
 | Timeline 送信 | GUI → Scheduler | `POST /api/timeline` (body=JSON) | 手動 | ガント更新、ログ |
 | 単発発火 | GUI → Scheduler | `POST /api/play` | 手動 | 発火コンソール |
 | NTP 情報 | Scheduler or Monitor | `GET /api/time` | 1 s | トップバー、残り時間算出 |
+
+Web フロントは Scheduler/Monitor への TLS WebSocket を常時維持し、Heartbeat/Diagnostics/Sendlog を単一の state store に集約する。CLI/スクリプトへ丸投げする場合でも `/api/timeline`・`/api/play` を経由して `request_id` を取得し、ブラウザ側の監査ログと突合できるようにする。
 
 送信・受信いずれも TLS を前提とし、API 失敗時は指数バックオフ＋ UI トースト表示。REST 応答には `request_id` を含め、ログと突合できるようにする。
 

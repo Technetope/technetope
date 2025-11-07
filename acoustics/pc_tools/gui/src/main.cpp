@@ -225,8 +225,6 @@ std::string toLowerCopy(std::string value) {
     return value;
 }
 
-struct MonitorEventDisplay;
-
 std::string trimString(const std::string& value) {
     const auto first = value.find_first_not_of(" \t\r\n");
     if (first == std::string::npos) {
@@ -235,6 +233,12 @@ std::string trimString(const std::string& value) {
     const auto last = value.find_last_not_of(" \t\r\n");
     return value.substr(first, last - first + 1);
 }
+
+struct MonitorEventDisplay {
+    std::chrono::system_clock::time_point timestamp{};
+    std::string type;
+    std::string summary;
+};
 
 void pushMonitorHistory(std::deque<MonitorEventDisplay>& history,
                         const std::string& type,
@@ -518,12 +522,6 @@ std::optional<ParsedWsUrl> parseWebSocketUrl(const std::string& url) {
     }
     return ParsedWsUrl{host, port, path};
 }
-
-struct MonitorEventDisplay {
-    std::chrono::system_clock::time_point timestamp{};
-    std::string type;
-    std::string summary;
-};
 
 class MonitorWebSocketClient {
 public:
