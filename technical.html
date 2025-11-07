@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical Ingenuity - Technetope</title>
+    <link rel="preload" as="image" href="https://raw.githubusercontent.com/Rhizobium-gits/Technetope/main/figure/background_cloud.png">
+    <style>
+        body {
+            opacity: 0;
+            transition: opacity 0.8s ease-in;
+        }
+        
+        body.loaded {
+            opacity: 1;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Hiragino Mincho ProN', 'ヒラギノ明朝 ProN', 'Yu Mincho', '游明朝', 'Times New Roman', serif;
+            background-color: #ffffff;
+            background-image: url('https://raw.githubusercontent.com/Rhizobium-gits/Technetope/main/figure/background_cloud.png');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            color: #ffffff;
+            line-height: 1.9;
+            padding: 40px 20px;
+            position: relative;
+        }
+        
+        .ripple-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        .ripple {
+            position: absolute;
+            border: 0.01px solid #000000;
+            border-radius: 50%;
+            opacity: 0;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .ripple1 {
+            width: 100px;
+            height: 100px;
+            animation: rippleEffect 2s ease-out;
+        }
+        
+        .ripple2 {
+            width: 100px;
+            height: 100px;
+            animation: rippleEffect 2s ease-out 0.2s;
+        }
+        
+        .ripple3 {
+            width: 100px;
+            height: 100px;
+            animation: rippleEffect 2s ease-out 0.4s;
+        }
+        
+        .ripple4 {
+            width: 100px;
+            height: 100px;
+            animation: rippleEffect 2s ease-out 0.6s;
+        }
+        
+        .ripple5 {
+            width: 100px;
+            height: 100px;
+            animation: rippleEffect 2s ease-out 0.8s;
+        }
+        
+        @keyframes rippleEffect {
+            0% {
+                transform: translate(-50%, -50%) scale(0.1);
+                opacity: 0;
+            }
+            30% {
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(15);
+                opacity: 0;
+            }
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            pointer-events: none;
+            opacity: 0;
+            animation: overlayFadeIn 0.8s ease-in 1.5s forwards;
+            z-index: 10;
+        }
+        
+        body > * {
+            position: relative;
+            z-index: 100;
+        }
+        
+        @keyframes overlayFadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.15);
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0;
+            animation: fadeInOverlay 0.8s ease-in 1.5s forwards;
+        }
+        
+        @keyframes fadeInOverlay {
+            to {
+                opacity: 1;
+            }
+        }
+        
+        .logo, .container {
+            position: relative;
+            z-index: 10;
+        }
+        
+        .logo {
+            position: fixed;
+            top: 30px;
+            left: 30px;
+            z-index: 100;
+        }
+        
+        .logo a {
+            font-family: 'Hiragino Mincho ProN', 'ヒラギノ明朝 ProN', 'Yu Mincho', '游明朝', 'Times New Roman', serif;
+            font-size: 1.5em;
+            color: #000000;
+            text-decoration: none;
+            letter-spacing: 0.1em;
+            font-weight: 300;
+            transition: opacity 0.3s;
+        }
+        
+        .logo a:hover {
+            opacity: 0.6;
+        }
+        
+        .container {
+            max-width: 700px;
+            margin: 0;
+            margin-left: 80px;
+            padding: 80px 40px 40px 40px;
+        }
+        
+        h1 {
+            font-size: 2em;
+            margin-bottom: 60px;
+            margin-top: 60px;
+            font-weight: 400;
+            letter-spacing: 0.05em;
+            background: linear-gradient(to right, rgba(0, 0, 0, 0.6) 50%, transparent 50%);
+            background-size: 200% 100%;
+            background-position: 100% 0;
+            padding: 8px 15px;
+            display: inline-block;
+            animation: typewriterMarker 0.8s ease-out 2s forwards;
+        }
+        
+        @keyframes typewriterMarker {
+            from {
+                background-position: 100% 0;
+            }
+            to {
+                background-position: 0% 0;
+            }
+        }
+        
+        .section {
+            margin-bottom: 50px;
+            padding-left: 30px;
+            border-left: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        h2 {
+            font-size: 1.3em;
+            margin-bottom: 20px;
+            font-weight: 500;
+            letter-spacing: 0.03em;
+            background: linear-gradient(to right, rgba(0, 0, 0, 0.6) 50%, transparent 50%);
+            background-size: 200% 100%;
+            background-position: 100% 0;
+            padding: 8px 15px;
+            display: inline-block;
+            animation: typewriterMarker 0.6s ease-out 2.2s forwards;
+        }
+        
+        p {
+            margin-bottom: 15px;
+            font-size: 0.95em;
+            line-height: 2;
+            text-align: justify;
+            background: linear-gradient(to right, rgba(0, 0, 0, 0.6) 50%, transparent 50%);
+            background-size: 200% 100%;
+            background-position: 100% 0;
+            padding: 10px 15px;
+            animation: typewriterMarker 0.8s ease-out 2.4s forwards;
+        }
+        
+        ul {
+            list-style: none;
+            margin-top: 15px;
+            background: linear-gradient(to right, rgba(0, 0, 0, 0.6) 50%, transparent 50%);
+            background-size: 200% 100%;
+            background-position: 100% 0;
+            padding: 10px 15px;
+            animation: typewriterMarker 0.8s ease-out 2.6s forwards;
+        }
+        
+        li {
+            padding-left: 20px;
+            position: relative;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+        }
+        
+        li::before {
+            content: '—';
+            position: absolute;
+            left: 0;
+            color: #e0e0e0;
+        }
+        
+        /* スマホ用の最適化 (768px以下) */
+        @media (max-width: 768px) {
+            body {
+                /* スマホでは縦長の背景を最適化 */
+                background-size: auto 100%;
+                background-position: center center;
+                background-attachment: scroll;
+                padding: 20px 15px;
+            }
+            
+            .logo {
+                top: 15px;
+                left: 15px;
+            }
+            
+            .logo a {
+                font-size: 1.1em;
+                /* タッチ操作しやすく */
+                padding: 5px;
+                display: inline-block;
+            }
+            
+            .container {
+                margin-left: 0;
+                padding: 60px 15px 40px 15px;
+                max-width: 100%;
+            }
+            
+            h1 {
+                font-size: 1.5em;
+                margin-top: 50px;
+                margin-bottom: 50px;
+                padding: 6px 12px;
+            }
+            
+            .section {
+                padding-left: 20px;
+                margin-bottom: 40px;
+                border-left-width: 1.5px;
+            }
+            
+            h2 {
+                font-size: 1.2em;
+                margin-bottom: 15px;
+                padding: 6px 12px;
+            }
+            
+            p {
+                font-size: 0.9em;
+                line-height: 1.95;
+                padding: 8px 12px;
+                margin-bottom: 12px;
+            }
+            
+            ul {
+                padding: 8px 12px;
+                margin-top: 12px;
+            }
+            
+            li {
+                font-size: 0.9em;
+                padding-left: 18px;
+                margin-bottom: 8px;
+            }
+        }
+        
+        /* タブレット用の最適化 (769px〜1024px) */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            body {
+                background-size: cover;
+                background-position: center center;
+                padding: 35px 20px;
+            }
+            
+            .logo {
+                top: 25px;
+                left: 25px;
+            }
+            
+            .logo a {
+                font-size: 1.35em;
+            }
+            
+            .container {
+                margin-left: 70px;
+                padding: 70px 35px 40px 35px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+                margin-bottom: 55px;
+            }
+            
+            .section {
+                padding-left: 25px;
+                margin-bottom: 45px;
+            }
+        }
+        
+        /* PC大画面用の最適化 (1025px以上) */
+        @media (min-width: 1025px) {
+            body {
+                background-size: cover;
+                background-position: center center;
+            }
+            
+            @media (min-width: 1400px) {
+                .container {
+                    max-width: 850px;
+                }
+                
+                h1 {
+                    font-size: 2.3em;
+                }
+            }
+        }
+        
+        /* 横向きスマホ用 */
+        @media (max-width: 768px) and (orientation: landscape) {
+            body {
+                background-size: cover;
+                background-position: center center;
+            }
+            
+            .container {
+                padding: 40px 15px 30px 15px;
+            }
+            
+            h1 {
+                margin-top: 30px;
+                margin-bottom: 40px;
+                font-size: 1.4em;
+            }
+            
+            .section {
+                margin-bottom: 35px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="ripple-container">
+        <div class="ripple ripple1"></div>
+        <div class="ripple ripple2"></div>
+        <div class="ripple ripple3"></div>
+        <div class="ripple ripple4"></div>
+        <div class="ripple ripple5"></div>
+    </div>
+    
+    <div class="logo">
+        <a href="index.html">Technetope</a>
+    </div>
+    
+    <div class="container">
+        <h1>Technical Ingenuity</h1>
+        
+        <div class="section">
+            <h2>Toio魔改造</h2>
+            <p>小型可動スピーカーとしてToioを改造し、群れとして動作するシステムを構築。各Toioは独立して動作しながらも、全体として有機的な群れの振る舞いを実現している。改造によって音響出力機能を追加し、移動と音の発生を同時に制御することで、視覚と聴覚の両面から生態系を表現する。</p>
+        </div>
+        
+        <div class="section">
+            <h2>音響制御</h2>
+            <p>各スピーカーが個別に音を発しながら、全体として調和のとれた音響空間を創出。30台のスピーカーが空間内を移動することで、音源の位置が常に変化し、観客を取り囲む立体的な音響体験を生み出す。群れの密度や動きに応じて音響パターンも変化し、生態系の状態を聴覚的に表現する。</p>
+        </div>
+        
+        <div class="section">
+            <h2>Toioの制御</h2>
+            <p>複数のToioを協調制御し、群れとしての振る舞いを実現。各Toioは自身の位置情報と周囲のToioの位置を認識し、群れアルゴリズムに基づいて移動方向を決定する。この分散制御システムにより、中央集権的な制御なしに、自律的で有機的な群れの動きを創出している。</p>
+        </div>
+        
+        <div class="section">
+            <h2>群れの動作</h2>
+            <p>人間の座標を信号として送ることで、群として動くToioたちは自分自身の座標を認識し、その座標で回避行動を取り大きかった群は小さな群に分かれる。しかし再び近くに来るタイミングがあればその群たちは再び繋がり群となる。このダイナミックな分離と統合のプロセスは、自然界の生物の群れ行動を模倣している。観客の存在は障害物として認識され、群れはそれを避けながらも、常に全体としての調和を保とうとする。</p>
+        </div>
+        
+        <div class="section">
+            <h2>視覚表現</h2>
+            <p>水面だけでなく4つのテーマにあった情景が映し出される。各テーマは異なる生態系を表現し、それぞれに適した視覚的・音響的環境を提供する。</p>
+            <ul>
+                <li>メダカ × 湖畔:静かな水面に映る光の揺らぎと、小さな生命の営み</li>
+                <li>イナゴ × 草原:風に揺れる草と、大地を覆う群れの躍動</li>
+                <li>鴨 × 秋空:広がる空と、季節の移ろいの中を渡る鳥たち</li>
+                <li>星 × 夜空:無限の宇宙空間に浮かぶ星々の静謐な運動</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        // 背景画像の読み込みを待つ
+        const bgImage = new Image();
+        bgImage.src = 'https://raw.githubusercontent.com/Rhizobium-gits/Technetope/main/figure/background_cloud.png';
+        
+        bgImage.onload = function() {
+            document.body.classList.add('loaded');
+        };
+        
+        bgImage.onerror = function() {
+            document.body.classList.add('loaded');
+        };
+    </script>
+</body>
+</html>
