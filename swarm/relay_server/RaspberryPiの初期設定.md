@@ -57,6 +57,7 @@ source ~/.zshrc   # zsh の場合
 git clone https://github.com/Technetope/technetope.git
 cd technetope
 git switch -c toio origin/toio 
+cd swarm
 ```
 
 ### uv 環境のセットアップ
@@ -113,5 +114,5 @@ sudo systemctl status swarm-relay
 
 ### bluetoothを再起動(toioを切断できる)
 ```bash
-sudo systemctl restart bluetooth
+sudo systemctl restart bluetooth && sudo systemctl restart swarm-relay
 ```
