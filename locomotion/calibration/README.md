@@ -114,6 +114,10 @@ sudo ./build/capture_calibration calibration_config_low_res.json calib_result.js
 ## 参考資料
 - [TESTING.md](TESTING.md) - 実機テスト手順書
 - [REQUIREMENTS_CALIBRATION_V2.md](REQUIREMENTS_CALIBRATION_V2.md) - 要件仕様
+- [HUMAN_DETECTION_VERIFICATION.md](HUMAN_DETECTION_VERIFICATION.md) - 人間検出システム検証手順
+- [HUMAN_DETECTION_USAGE.md](HUMAN_DETECTION_USAGE.md) - 人間検出システム使用方法
+- [HUMAN_DETECTION_COMPUTATION.md](HUMAN_DETECTION_COMPUTATION.md) - 人間検出システム計算方法
+- [VELOCITY_COMPUTATION_IMPROVEMENTS.md](VELOCITY_COMPUTATION_IMPROVEMENTS.md) - 速度計算の改善
 - [STATUS.md](STATUS.md) - 実装状況
 - RealSense Align サンプル: https://github.com/IntelRealSense/librealsense/tree/master/examples/align  
 - OpenCV + Charuco キャリブレーション例: https://github.com/opencv/opencv/blob/master/samples/cpp/tutorial_code/calib3d/camera_calibration/charuco_diamond.cpp  

@@ -7,6 +7,12 @@
 
 ---
 
+## 関連ドキュメント
+
+- [HUMAN_DETECTION_VERIFICATION.md](HUMAN_DETECTION_VERIFICATION.md) - 人間検出システムの検証手順
+
+---
+
 ## 1. 前提条件
 
 ### 1.1 ハードウェア要件
