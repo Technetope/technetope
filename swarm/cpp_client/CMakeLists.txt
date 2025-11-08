@@ -50,5 +50,6 @@ target_compile_definitions(toio_lib
 
 add_executable(toio_cli
     src/main.cpp
+    src/cli/config_loader.cpp
 )
 target_link_libraries(toio_cli PRIVATE toio_lib yaml-cpp::yaml-cpp)
