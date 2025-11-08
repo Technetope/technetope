@@ -12,8 +12,8 @@ namespace locomotion::calibration {
 
 struct SessionConfig {
   int attempts{5};
-  double max_plane_std_mm{5.0};
-  double min_inlier_ratio{0.5};
+  double max_plane_std_mm{8.0};
+  double min_inlier_ratio{0.7};
   bool save_intermediate_snapshots{false};
   std::string snapshot_output_dir;
 };

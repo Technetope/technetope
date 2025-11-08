@@ -1,0 +1,132 @@
+diff --git a/common/viewer.cpp b/common/viewer.cpp
+index 51d201a..ea50d8f 100644
+--- a/common/viewer.cpp
++++ b/common/viewer.cpp
+@@ -2051,6 +2051,8 @@ namespace rs2
+     void viewer_model::render_3d_view(const rect& viewer_rect, ux_window& win,
+         std::shared_ptr<texture_buffer> texture, rs2::points points, rs2::labeled_points labeled_points)
+     {
++        clear_gl_errors();
++
+         auto top_bar_height = 60.f;
+ 
+         if (points)
+diff --git a/src/libusb/context-libusb.cpp b/src/libusb/context-libusb.cpp
+index e8ea8be..eae8356 100644
+--- a/src/libusb/context-libusb.cpp
++++ b/src/libusb/context-libusb.cpp
+@@ -11,20 +11,27 @@ namespace librealsense
+         usb_context::usb_context() : _ctx(NULL), _list(NULL), _count(0)
+         {
+             auto sts = libusb_init(&_ctx);
+-            if(sts != LIBUSB_SUCCESS)
++            if (sts != LIBUSB_SUCCESS)
+             {
+-                LOG_ERROR("libusb_init failed");
++                LOG_ERROR("libusb_init failed: " << libusb_error_name(sts));
++                _ctx = nullptr;
++                return;
+             }
++
+             _count = libusb_get_device_list(_ctx, &_list);
+         }
+         
+         usb_context::~usb_context()
+         {
+-            libusb_free_device_list(_list, true);
++            if (_list)
++                libusb_free_device_list(_list, true);
++
+             assert(_handler_requests == 0); // we need the last libusb_close to trigger an event to stop the event thread
+             if (_event_handler.joinable())
+                 _event_handler.join();
+-            libusb_exit(_ctx);
++
++            if (_ctx)
++                libusb_exit(_ctx);
+         }
+         
+         libusb_context* usb_context::get()
+@@ -34,6 +41,9 @@ namespace librealsense
+     
+         void usb_context::start_event_handler()
+         {
++            if (!_ctx)
++                return;
++
+             std::lock_guard<std::mutex> lk(_mutex);
+             if (!_handler_requests) {
+                 // see "Applications which do not use hotplug support" in libusb's io.c
+diff --git a/third-party/imgui/imgui_impl_opengl3.cpp b/third-party/imgui/imgui_impl_opengl3.cpp
+index bbe96c4..d5f2f3d 100644
+--- a/third-party/imgui/imgui_impl_opengl3.cpp
++++ b/third-party/imgui/imgui_impl_opengl3.cpp
+@@ -168,6 +168,10 @@
+ #include "imgui_impl_opengl3_loader.h"
+ #endif
+ 
++#ifndef GL_SHADING_LANGUAGE_VERSION
++#define GL_SHADING_LANGUAGE_VERSION 0x8B8C
++#endif
++
+ // Vertex arrays are not supported on ES2/WebGL1 unless Emscripten which uses an extension
+ #ifndef IMGUI_IMPL_OPENGL_ES2
+ #define IMGUI_IMPL_OPENGL_USE_VERTEX_ARRAY
+@@ -272,6 +276,33 @@ struct ImGui_ImplOpenGL3_VtxAttribState
+ };
+ #endif
+ 
++static int ImGui_ImplOpenGL3_ParseGLSLVersion(const char* version_str)
++{
++    if (version_str == nullptr)
++        return 0;
++
++    const char* p = version_str;
++    while (*p && *p != '#' && (*p < '0' || *p > '9'))
++        ++p;
++
++    if (*p == '#')
++    {
++        int parsed = 0;
++        if (sscanf(p, "#version %d", &parsed) == 1 && parsed > 0)
++            return parsed;
++        while (*p && (*p < '0' || *p > '9'))
++            ++p;
++    }
++
++    int major = 0;
++    int minor = 0;
++    if (sscanf(p, "%d.%d", &major, &minor) == 2 && major > 0)
++        return major * 100 + minor;
++    if (sscanf(p, "%d", &major) == 1 && major > 0)
++        return major;
++    return 0;
++}
++
+ // Functions
+ bool    ImGui_ImplOpenGL3_Init(const char* glsl_version)
+ {
+@@ -355,9 +386,21 @@ bool    ImGui_ImplOpenGL3_Init(const char* glsl_version)
+         glsl_version = "#version 130";
+ #endif
+     }
++
++    char glsl_version_buffer[32] = {};
++    const char* shading_lang = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
++    int requested_glsl = ImGui_ImplOpenGL3_ParseGLSLVersion(glsl_version);
++    int driver_glsl = ImGui_ImplOpenGL3_ParseGLSLVersion(shading_lang);
++    if (driver_glsl > 0 && requested_glsl > 0 && driver_glsl < requested_glsl)
++    {
++        if (driver_glsl < 120)
++            driver_glsl = 120;
++        snprintf(glsl_version_buffer, IM_ARRAYSIZE(glsl_version_buffer), "#version %d", driver_glsl);
++        glsl_version = glsl_version_buffer;
++    }
++
+     IM_ASSERT((int)strlen(glsl_version) + 2 < IM_ARRAYSIZE(bd->GlslVersionString));
+-    strcpy(bd->GlslVersionString, glsl_version);
+-    strcat(bd->GlslVersionString, "\n");
++    snprintf(bd->GlslVersionString, IM_ARRAYSIZE(bd->GlslVersionString), "%s\n", glsl_version);
+ 
+     // Make an arbitrary GL call (we don't actually need the result)
+     // IF YOU GET A CRASH HERE: it probably means the OpenGL function loader didn't do its job. Let us know!

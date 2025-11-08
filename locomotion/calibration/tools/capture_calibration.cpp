@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -33,6 +34,11 @@ CalibrationConfig loadConfigFromJson(const std::filesystem::path& path) {
       dst = j[key].get<double>();
     }
   };
+  auto load_uint64 = [&j](const char* key, uint64_t& dst) {
+    if (j.contains(key)) {
+      dst = j[key].get<uint64_t>();
+    }
+  };
   auto load_string = [&j](const char* key, std::string& dst) {
     if (j.contains(key)) {
       dst = j[key].get<std::string>();
@@ -53,6 +59,13 @@ CalibrationConfig loadConfigFromJson(const std::filesystem::path& path) {
   load_double("max_reprojection_error_id", config.max_reprojection_error_id);
   load_double("floor_inlier_threshold_mm", config.floor_inlier_threshold_mm);
   load_int("floor_ransac_iterations", config.floor_ransac_iterations);
+  load_double("floor_min_inlier_ratio", config.floor_min_inlier_ratio);
+  load_double("floor_z_min_mm", config.floor_z_min_mm);
+  load_double("floor_z_max_mm", config.floor_z_max_mm);
+  load_int("floor_downsample_grid", config.floor_downsample_grid);
+  load_double("max_plane_std_mm", config.max_plane_std_mm);
+  load_int("session_attempts", config.session_attempts);
+  load_uint64("random_seed", config.random_seed);
   load_string("aruco_dictionary", config.aruco_dictionary);
   load_string("playmat_layout_path", config.playmat_layout_path);
   load_string("board_mount_label", config.board_mount_label);
@@ -102,6 +115,15 @@ int main(int argc, char** argv) {
     ifs >> config_json;
   }
   SessionConfig session_config = makeSessionConfig(config_json);
+  if (!config_json.contains("session_attempts")) {
+    session_config.attempts = calib_config.session_attempts;
+  }
+  if (!config_json.contains("max_plane_std_mm")) {
+    session_config.max_plane_std_mm = calib_config.max_plane_std_mm;
+  }
+  if (!config_json.contains("min_inlier_ratio")) {
+    session_config.min_inlier_ratio = calib_config.floor_min_inlier_ratio;
+  }
 
   CalibrationPipeline pipeline(calib_config);
   CalibrationSession session(std::move(pipeline), session_config);

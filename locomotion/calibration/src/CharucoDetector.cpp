@@ -31,7 +31,7 @@ CharucoDetector::CharucoDetector(cv::Ptr<cv::aruco::Dictionary> dictionary,
                                  CharucoDetectorConfig config)
     : dictionary_(std::move(dictionary)),
       board_(std::move(board)),
-      detector_params_(cv::aruco::DetectorParameters::create()),
+      detector_params_(cv::makePtr<cv::aruco::DetectorParameters>()),
       config_(std::move(config)) {
   detector_params_->cornerRefinementMethod =
       config_.enable_subpixel_refine ? cv::aruco::CORNER_REFINE_SUBPIX
@@ -76,10 +76,11 @@ std::optional<CharucoDetectionResult> CharucoDetector::Detect(
   result.board_points.reserve(charuco_ids.total());
   result.ids.reserve(charuco_ids.total());
 
+  const auto chessboard_corners = board_->getChessboardCorners();
   for (int i = 0; i < charuco_ids.total(); ++i) {
     const auto id = charuco_ids.at<int>(i);
     const cv::Point2f pixel = charuco_corners.at<cv::Point2f>(i);
-    const cv::Point3f board_pt = board_->chessboardCorners[id];
+    const cv::Point3f board_pt = chessboard_corners.at(id);
     result.ids.push_back(id);
     result.image_points.push_back(pixel);
     result.board_points.push_back(board_pt);

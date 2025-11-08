@@ -6,9 +6,12 @@
 
 #include <opencv2/core.hpp>
 
+#include "locomotion/calibration/CameraIntrinsics.h"
+
 namespace locomotion::calibration {
 
 struct CalibrationResult {
+  CameraIntrinsics intrinsics;
   cv::Mat homography;
   cv::Vec4f floor_plane;
   double reprojection_error{0.0};

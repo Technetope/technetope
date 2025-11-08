@@ -1,11 +1,14 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "locomotion/calibration/CameraIntrinsics.h"
 #include "locomotion/calibration/CharucoDetector.h"
 #include "locomotion/calibration/FloorPlaneEstimator.h"
 #include "locomotion/calibration/PlaymatLayout.h"
@@ -40,6 +43,14 @@ struct CalibrationConfig {
   bool enable_floor_plane_fit{true};
   double floor_inlier_threshold_mm{8.0};
   int floor_ransac_iterations{500};
+  double floor_min_inlier_ratio{0.7};
+  double floor_z_min_mm{300.0};
+  double floor_z_max_mm{1500.0};
+  int floor_downsample_grid{4};
+
+  double max_plane_std_mm{8.0};
+  int session_attempts{5};
+  uint64_t random_seed{42};
 
   std::string aruco_dictionary{"DICT_4X4_50"};
   std::string playmat_layout_path{"config/toio_playmat.json"};
@@ -48,9 +59,10 @@ struct CalibrationConfig {
 };
 
 struct CalibrationSnapshot {
+  CameraIntrinsics intrinsics;
   cv::Mat homography_color_to_position;  // 画像→toio Position ID 座標
-  cv::Vec4f floor_plane;                 // 床平面（ax+by+cz+d=0）
-  double reprojection_error;             // Position ID 座標系での誤差目安
+  cv::Vec4f floor_plane{0.0F, 0.0F, 1.0F, 0.0F};  // 床平面（ax+by+cz+d=0）
+  double reprojection_error{std::numeric_limits<double>::infinity()};  // Position ID 座標系
   double floor_plane_std_mm{0.0};
   double inlier_ratio{0.0};
   int detected_charuco_corners{0};
@@ -70,6 +82,8 @@ class CalibrationPipeline {
 
   CalibrationPipeline(const CalibrationPipeline&) = delete;
   CalibrationPipeline& operator=(const CalibrationPipeline&) = delete;
+  CalibrationPipeline(CalibrationPipeline&&) noexcept = default;
+  CalibrationPipeline& operator=(CalibrationPipeline&&) noexcept = default;
 
   bool initialize();
   std::optional<CalibrationSnapshot> runOnce();
@@ -102,6 +116,12 @@ class CalibrationPipeline {
   PlaymatLayout playmat_layout_;
   bool has_playmat_layout_{false};
   mutable bool warned_layout_not_loaded_{false};
+
+  CameraIntrinsics camera_intrinsics_;
+  bool intrinsics_loaded_{false};
+  cv::Mat camera_matrix_;
+  cv::Mat dist_coeffs_;
+  double depth_scale_m_{0.001};
 };
 
 }  // namespace locomotion::calibration

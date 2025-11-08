@@ -4,14 +4,44 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
+#include <ctime>
 
 #include <nlohmann/json.hpp>
 
 namespace locomotion::calibration {
 
+namespace {
+
+std::string formatTimestamp(const std::chrono::system_clock::time_point& tp) {
+  std::time_t tt = std::chrono::system_clock::to_time_t(tp);
+  std::tm tm{};
+#if defined(_WIN32)
+  gmtime_s(&tm, &tt);
+#else
+  gmtime_r(&tt, &tm);
+#endif
+  std::ostringstream oss;
+  oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
+  return oss.str();
+}
+
+}  // namespace
+
 CalibrationSession::CalibrationSession(CalibrationPipeline pipeline,
                                        SessionConfig session_config)
-    : pipeline_(std::move(pipeline)), session_config_(std::move(session_config)) {}
+    : pipeline_(std::move(pipeline)), session_config_(std::move(session_config)) {
+  if (session_config_.attempts <= 0) {
+    session_config_.attempts = pipeline_.config().session_attempts;
+  }
+  if (session_config_.max_plane_std_mm <= 0.0) {
+    session_config_.max_plane_std_mm = pipeline_.config().max_plane_std_mm;
+  }
+  if (session_config_.min_inlier_ratio <= 0.0) {
+    session_config_.min_inlier_ratio = pipeline_.config().floor_min_inlier_ratio;
+  }
+}
 
 std::optional<CalibrationResult> CalibrationSession::Run() {
   if (!pipeline_.initialize()) {
@@ -69,6 +99,7 @@ std::optional<CalibrationResult> CalibrationSession::Run() {
 
 CalibrationResult CalibrationSession::ToResult(const CalibrationSnapshot& snapshot) {
   CalibrationResult result;
+  result.intrinsics = snapshot.intrinsics;
   result.homography = snapshot.homography_color_to_position.clone();
   result.floor_plane = snapshot.floor_plane;
   result.reprojection_error = snapshot.reprojection_error;
@@ -82,16 +113,26 @@ CalibrationResult CalibrationSession::ToResult(const CalibrationSnapshot& snapsh
 bool CalibrationSession::SaveResultJson(const CalibrationResult& result,
                                         const std::string& path) const {
   nlohmann::json j;
-  j["schema_version"] = 1;
-  j["timestamp"] = std::chrono::duration_cast<std::chrono::milliseconds>(
-                       result.timestamp.time_since_epoch())
-                       .count();
+  j["schema_version"] = "2.0";
+  j["timestamp"] = formatTimestamp(result.timestamp);
   j["reprojection_error_id"] = result.reprojection_error;
-  j["floor_plane"] = {result.floor_plane[0], result.floor_plane[1],
-                      result.floor_plane[2], result.floor_plane[3]};
-  j["floor_plane_std_mm"] = result.floor_plane_std_mm;
-  j["inlier_ratio"] = result.inlier_ratio;
-  j["detected_charuco_corners"] = result.detected_charuco_corners;
+
+  nlohmann::json intrinsics_json;
+  intrinsics_json["fx"] = result.intrinsics.fx;
+  intrinsics_json["fy"] = result.intrinsics.fy;
+  intrinsics_json["cx"] = result.intrinsics.cx;
+  intrinsics_json["cy"] = result.intrinsics.cy;
+  intrinsics_json["distortion_model"] = result.intrinsics.distortion_model;
+  intrinsics_json["distortion_coeffs"] = result.intrinsics.distortion_coeffs;
+  j["intrinsics"] = intrinsics_json;
+
+  nlohmann::json floor_plane_json;
+  floor_plane_json["coefficients"] = {result.floor_plane[0], result.floor_plane[1],
+                                      result.floor_plane[2], result.floor_plane[3]};
+  floor_plane_json["std_mm"] = result.floor_plane_std_mm;
+  floor_plane_json["inlier_ratio"] = result.inlier_ratio;
+  j["floor_plane"] = floor_plane_json;
+  j["charuco_corners"] = result.detected_charuco_corners;
 
   auto& h = j["homography_color_to_position"];
   h = nlohmann::json::array();
@@ -102,6 +143,27 @@ bool CalibrationSession::SaveResultJson(const CalibrationResult& result,
     }
     h.push_back(row);
   }
+
+  const auto& pipeline_cfg = pipeline_.config();
+  bool repro_pass = result.reprojection_error <= pipeline_cfg.max_reprojection_error_id;
+  bool plane_std_pass = true;
+  bool inlier_pass = true;
+
+  if (pipeline_cfg.enable_floor_plane_fit) {
+    plane_std_pass = result.floor_plane_std_mm <= session_config_.max_plane_std_mm;
+    inlier_pass = result.inlier_ratio >= session_config_.min_inlier_ratio;
+  }
+
+  nlohmann::json checks;
+  checks["reprojection_error"] = repro_pass ? "PASS" : "FAIL";
+  checks["floor_plane_std"] =
+      pipeline_cfg.enable_floor_plane_fit ? (plane_std_pass ? "PASS" : "FAIL") : "SKIP";
+  checks["floor_inlier_ratio"] =
+      pipeline_cfg.enable_floor_plane_fit ? (inlier_pass ? "PASS" : "FAIL") : "SKIP";
+
+  j["validation"] = {
+      {"passed", repro_pass && plane_std_pass && inlier_pass},
+      {"checks", checks}};
 
   try {
     std::filesystem::create_directories(std::filesystem::path(path).parent_path());

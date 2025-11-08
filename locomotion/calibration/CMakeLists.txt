@@ -42,4 +42,8 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
     add_executable(capture_calibration tools/capture_calibration.cpp)
     target_link_libraries(capture_calibration PRIVATE locomotion_calibration)
     target_compile_features(capture_calibration PRIVATE cxx_std_20)
+
+    add_executable(calibrate_intrinsics tools/calibrate_intrinsics.cpp)
+    target_link_libraries(calibrate_intrinsics PRIVATE locomotion_calibration)
+    target_compile_features(calibrate_intrinsics PRIVATE cxx_std_20)
 endif()
