@@ -11,7 +11,6 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include <nlohmann/json.hpp>
@@ -27,12 +26,7 @@ using toio::middleware::ServerConfig;
 namespace {
 
 struct Options {
-  std::string host = "127.0.0.1";
-  std::string port = "8765";
-  std::string endpoint = "/ws";
-  std::vector<std::string> cube_ids;
-  bool auto_subscribe = false;
-  std::optional<std::string> fleet_config_path;
+  std::string fleet_config_path;
 };
 
 struct FleetPlan {
@@ -55,9 +49,7 @@ struct FleetGuard {
 
 void print_usage(const char *argv0) {
   std::cout << "Usage: " << argv0
-            << " [--fleet-config fleet.yaml] "
-               "[--id <cube-id> ...] [--host <host>] [--port <port>] "
-               "[--path <endpoint>] [--subscribe]\n";
+            << " --fleet-config <fleet.yaml>\n";
 }
 
 std::vector<std::string> tokenize(const std::string &line) {
@@ -76,20 +68,12 @@ int to_int(const std::string &value) {
 
 Options parse_options(int argc, char **argv) {
   Options opt;
+  bool has_config = false;
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
-    if (arg == "--host" && i + 1 < argc) {
-      opt.host = argv[++i];
-    } else if (arg == "--port" && i + 1 < argc) {
-      opt.port = argv[++i];
-    } else if (arg == "--path" && i + 1 < argc) {
-      opt.endpoint = argv[++i];
-    } else if (arg == "--id" && i + 1 < argc) {
-      opt.cube_ids.push_back(argv[++i]);
-    } else if (arg == "--subscribe") {
-      opt.auto_subscribe = true;
-    } else if (arg == "--fleet-config" && i + 1 < argc) {
+    if (arg == "--fleet-config" && i + 1 < argc) {
       opt.fleet_config_path = argv[++i];
+      has_config = true;
     } else if (arg == "--help" || arg == "-h") {
       print_usage(argv[0]);
       std::exit(0);
@@ -98,9 +82,8 @@ Options parse_options(int argc, char **argv) {
     }
   }
 
-  if (!opt.fleet_config_path && opt.cube_ids.empty()) {
-    throw std::runtime_error(
-        "At least one --id or --fleet-config must be specified");
+  if (!has_config) {
+    throw std::runtime_error("--fleet-config is required");
   }
 
   return opt;
@@ -163,23 +146,7 @@ std::vector<ServerConfig> load_fleet_config(const std::string &path) {
 
 FleetPlan build_fleet_plan(const Options &options) {
   FleetPlan plan;
-  if (options.fleet_config_path) {
-    plan.configs = load_fleet_config(*options.fleet_config_path);
-  } else {
-    ServerConfig config;
-    config.id = "default";
-    config.host = options.host;
-    config.port = options.port;
-    config.endpoint = options.endpoint;
-    for (const auto &cube_id : options.cube_ids) {
-      CubeConfig cube;
-      cube.id = cube_id;
-      cube.auto_connect = true;
-      cube.auto_subscribe = options.auto_subscribe;
-      config.cubes.push_back(std::move(cube));
-    }
-    plan.configs.push_back(std::move(config));
-  }
+  plan.configs = load_fleet_config(options.fleet_config_path);
 
   for (const auto &server : plan.configs) {
     for (const auto &cube : server.cubes) {
@@ -481,4 +448,3 @@ int main(int argc, char **argv) {
 
   return 0;
 }
-

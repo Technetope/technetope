@@ -8,17 +8,13 @@
 ./build/toio_cli --fleet-config configs/fleet.yaml
 ```
 
-- `--fleet-config` に YAML を渡すと、複数サーバー構成を定義通りに初期化します。
-- 従来の単一サーバーモードもサポートしており、`--id` を複数指定するとその場で FleetManager の構成が生成されます。
+`--fleet-config` は必須で、指定した YAML に従って FleetManager が初期化されます。`configs/minimal.yaml` を渡すとローカル検証用の最小構成が読み込まれます。
 
 ### 主な引数
 
 | 引数 | 説明 |
 |------|------|
-| `--fleet-config <path>` | YAML (例: `configs/fleet.yaml`) を読み込み。 |
-| `--id <cube-id>` | 単一サーバーモードで管理する Cube ID。複数回指定可。 |
-| `--host` / `--port` / `--path` | 単一サーバーモードの接続先。 |
-| `--subscribe` | 起動直後に `query_position(..., true)` を送る。 |
+| `--fleet-config <path>` | 必須。YAML (例: `configs/fleet.yaml`) を読み込み。 |
 | `--help` / `-h` | 使い方を表示して終了。 |
 
 ## コマンド一覧

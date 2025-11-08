@@ -20,12 +20,7 @@ cmake --build build
 ./build/toio_cli --fleet-config configs/fleet.yaml
 ```
 
-従来の単一サーバーモードもサポートしており、`--id` を複数指定すると
-その場で `fleet.yaml` 相当の構成が生成されます。
-
-```bash
-./build/toio_cli --id 56f --id j2T --host 127.0.0.1 --port 8765
-```
+`--fleet-config` は必須引数です。手元で試す場合は `configs/minimal.yaml` をコピーして編集するか、そのまま指定すると最小構成で起動できます。
 
 起動後は以下のようなコマンドを入力できます。
 ```

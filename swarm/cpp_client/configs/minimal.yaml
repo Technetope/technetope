@@ -4,6 +4,9 @@ servers:
     port: 8765
     endpoint: /ws
     cubes:
-      - id: demo
+      - id: d8J
+        auto_connect: true
+        auto_subscribe: false
+      - id: j2T
         auto_connect: true
         auto_subscribe: false

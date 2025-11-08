@@ -36,7 +36,7 @@ struct CubeState {
 - Thread-safety は `std::shared_mutex` で確保し、読み取りは `shared_lock`、書き込みは `unique_lock` で行う。
 
 ## CLI との統合
-1. 起動時に `--fleet-config path` を指定すると YAML を読み込み、サーバーごとに `ServerSession` を生成。従来の `--host`/`--id` も後方互換として単一サーバー構成を動的生成する。
+1. 起動時に `--fleet-config path` を指定すると YAML を読み込み、サーバーごとに `ServerSession` を生成する。
 2. CLI の `tokenize` → `switch/case` は維持しつつ、実処理はすべて FleetManager の API に委譲。
 3. `status` コマンドは `snapshot()` の内容を整形表示し、`moveall`/`ledall`/`posall` などは `*_all` ヘルパーを呼ぶだけで済む。
 
@@ -77,8 +77,8 @@ servers:
 
 ### CLI での利用
 - `./toio_cli --fleet-config configs/fleet.yaml` で YAML を読み込み、複数サーバーを同時制御。
-- `--host`, `--port`, `--endpoint`, `--id` を指定した場合は内部で単一サーバー構成を生成（`--subscribe` は `auto_subscribe=true` 相当）。
-- 設定ファイルを省略しても CLI は動作するが、`status` や `*_all` コマンドの対象は引数で指定した Cube に限られる。
+- CLI は常に YAML 設定ファイル経由で構成を読み込む。ローカル検証用には `configs/minimal.yaml` をそのまま利用できる。
+- 設定ファイルなしのモードは廃止されており、必ず `--fleet-config` を指定して起動する。
 
 ## 今後の検討事項
 - ServerSession の再接続ポリシー（指数バックオフ・最大リトライ回数）。
