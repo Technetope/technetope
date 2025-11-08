@@ -8,6 +8,7 @@ servers:
     cubes:
       - id: j2T
       - id: p84
+      - id: m7d
   - id: 5b-01
     host: 5b-01.local
     port: 8765

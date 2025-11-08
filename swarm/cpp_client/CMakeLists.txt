@@ -64,5 +64,6 @@ target_link_libraries(fleet_control_sample PRIVATE toio_lib)
 
 add_executable(circle_motion_sample
     samples/circle_motion_sample.cpp
+    samples/motion_planner.cpp
 )
 target_link_libraries(circle_motion_sample PRIVATE toio_lib)

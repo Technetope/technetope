@@ -1,5 +1,8 @@
+#include "motion_planner.hpp"
+
 #include "toio/api/fleet_control.hpp"
 #include "toio/cli/config_loader.hpp"
+#include "toio/middleware/cube_state.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -17,32 +20,41 @@
 
 namespace {
 
-constexpr double kCenterX = 250.0;
-constexpr double kCenterY = 250.0;
-constexpr double kBaseRadius = 120.0;
-constexpr double kRadiusAmplitude = 30.0;
-constexpr double kAngularSpeed = 0.45;            // rad/s
-constexpr double kRadiusOscillationPeriod = 14.0; // seconds
-constexpr double kDirectionFlipInterval = 6.0;    // seconds
+std::vector<toio::middleware::Position>
+extract_positions(const std::vector<toio::api::CubeHandle> &cubes,
+                  const std::vector<toio::middleware::CubeSnapshot> &snapshots) {
+  std::vector<toio::middleware::Position> positions;
+  positions.reserve(cubes.size());
+  for (const auto &cube : cubes) {
+    toio::middleware::Position position{};
+    bool found = false;
+    for (const auto &snapshot : snapshots) {
+      if (snapshot.state.server_id == cube.server_id &&
+          snapshot.state.cube_id == cube.cube_id &&
+          snapshot.state.position.has_value()) {
+        position = *snapshot.state.position;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      position.x = 0;
+      position.y = 0;
+      position.angle = 0;
+    }
+    positions.push_back(position);
+  }
+  return positions;
+}
+
 constexpr std::chrono::milliseconds kUpdateInterval{120};
 constexpr std::chrono::seconds kDemoDuration{30};
 constexpr std::chrono::seconds kConnectionTimeout{30};
 constexpr std::chrono::milliseconds kConnectionPoll{200};
-
 std::atomic<bool> g_interrupted{false};
 
 void handle_sigint(int) {
   g_interrupted.store(true);
-}
-
-double oscillating_radius(double elapsed_seconds) {
-  if (kRadiusOscillationPeriod <= 0.0 || kRadiusAmplitude <= 0.0) {
-    return kBaseRadius;
-  }
-  constexpr double kTwoPi = 2.0 * 3.14159265358979323846;
-  double phase = kTwoPi * elapsed_seconds / kRadiusOscillationPeriod;
-  double radius = kBaseRadius + kRadiusAmplitude * std::sin(phase);
-  return std::max(30.0, radius);
 }
 
 struct PendingConnect {
@@ -216,11 +228,9 @@ int main(int argc, char **argv) {
     }
 
     std::cout << "Driving " << active_cubes.size()
-              << " cube(s) around a dynamic circle centered at (" << kCenterX
-              << ", " << kCenterY << ").\n";
+              << " cube(s) using the motion planner demo.\n";
 
-    const double delta = 2.0 * 3.14159265358979323846 /
-                         static_cast<double>(active_cubes.size());
+    swarm::samples::MotionPlanner planner;
     auto goal_for_position = [](double x, double y) {
       toio::control::GoalOptions goal;
       goal.goal_x = static_cast<int>(std::lround(x));
@@ -231,44 +241,35 @@ int main(int argc, char **argv) {
       goal.wmax = 80.0;
       return goal;
     };
-    double initial_radius = oscillating_radius(0.0);
+
+    
+    auto initial_targets = planner.initial_targets(active_cubes.size());
     for (std::size_t i = 0; i < active_cubes.size(); ++i) {
-      const double angle = delta * static_cast<double>(i);
-      const double x = kCenterX + initial_radius * std::cos(angle);
-      const double y = kCenterY + initial_radius * std::sin(angle);
-      control.start_goal(active_cubes[i], goal_for_position(x, y));
+      if (i >= initial_targets.size()) {
+        break;
+      }
+      const auto &target = initial_targets[i];
+      control.start_goal(active_cubes[i], goal_for_position(target.x, target.y));
     }
 
     const auto start_time = std::chrono::steady_clock::now();
-    auto last_time = start_time;
     const auto end_time = start_time + kDemoDuration;
-    double base_angle = 0.0;
-    double direction = 1.0;
-    double direction_timer = 0.0;
 
     while (std::chrono::steady_clock::now() < end_time &&
            !g_interrupted.load()) {
-      const auto now = std::chrono::steady_clock::now();
-      const double elapsed =
-          std::chrono::duration<double>(now - start_time).count();
-      const double dt =
-          std::chrono::duration<double>(now - last_time).count();
-      last_time = now;
-
-      direction_timer += dt;
-      if (direction_timer >= kDirectionFlipInterval) {
-        direction_timer -= kDirectionFlipInterval;
-        direction = -direction;
+      auto snapshots = control.snapshot();
+      auto positions = extract_positions(active_cubes, snapshots);
+      auto targets = planner.next_targets(positions);
+      if (targets.size() != active_cubes.size()) {
+        std::cerr << "Planner output size mismatch, skipping update cycle.\n";
+        std::this_thread::sleep_for(kUpdateInterval);
+        continue;
       }
 
-      base_angle += direction * kAngularSpeed * dt;
-      const double radius = oscillating_radius(elapsed);
-
       for (std::size_t i = 0; i < active_cubes.size(); ++i) {
-        const double angle = base_angle + delta * static_cast<double>(i);
-        const double x = kCenterX + radius * std::cos(angle);
-        const double y = kCenterY + radius * std::sin(angle);
-        if (!control.update_goal(active_cubes[i], goal_for_position(x, y))) {
+        const auto &target = targets[i];
+        if (!control.update_goal(active_cubes[i],
+                                 goal_for_position(target.x, target.y))) {
           std::cerr << "Failed to update goal for cube "
                     << active_cubes[i].cube_id
                     << "\n";
