@@ -61,7 +61,7 @@ std::vector<ServerConfig> load_fleet_config(const std::string &path) {
         cube.id =
             scalar_or_throw<std::string>(cube_node["id"], "servers[].cubes[].id");
         cube.auto_connect = cube_node["auto_connect"].as<bool>(true);
-        cube.auto_subscribe = cube_node["auto_subscribe"].as<bool>(true);
+        cube.auto_subscribe = cube_node["auto_subscribe"].as<bool>(false);
         cube.initial_led = random_led_color();
         if (auto led_node = cube_node["initial_led"]; led_node) {
           if (!led_node.IsSequence() || led_node.size() != 3) {
