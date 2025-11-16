@@ -69,9 +69,10 @@ void setup() {
     return;
   }
 
+  const float board_voltage = M5.Power.getBatteryVoltage() *(3.3f/4096.0f);
   g_ui.UpdateStatus(g_toio.pose(), g_toio.hasPose(), g_toio.batteryLevel(),
-                    g_toio.hasBatteryLevel(), g_toio.ledColor(),
-                    g_toio.motorState(),
+                    g_toio.hasBatteryLevel(), board_voltage,
+                    g_toio.ledColor(), g_toio.motorState(),
                     /*pose_dirty=*/true, /*battery_dirty=*/true,
                     kRefreshIntervalMs);
   g_toio.clearPoseDirty();
@@ -92,10 +93,12 @@ void loop() {
   const bool pose_dirty = g_toio.poseDirty();
   const bool battery_dirty = g_toio.batteryDirty();
 
+  const float board_voltage = M5.Power.getBatteryVoltage()*(3.3f/4096.0f);
+
   g_ui.UpdateStatus(g_toio.pose(), g_toio.hasPose(), g_toio.batteryLevel(),
-                    g_toio.hasBatteryLevel(), g_toio.ledColor(),
-                    g_toio.motorState(), pose_dirty, battery_dirty,
-                    kRefreshIntervalMs);
+                    g_toio.hasBatteryLevel(), board_voltage,
+                    g_toio.ledColor(), g_toio.motorState(), pose_dirty,
+                    battery_dirty, kRefreshIntervalMs);
   if (pose_dirty) {
     g_toio.clearPoseDirty();
   }

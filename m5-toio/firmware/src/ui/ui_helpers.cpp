@@ -76,7 +76,7 @@ void UiHelpers::LogScanResults(const std::vector<std::string>& suffixes) {
 
 void UiHelpers::UpdateStatus(const CubePose& pose, bool has_pose,
                              uint8_t battery_level, bool has_battery,
-                             const ToioLedColor& led,
+                             float board_voltage, const ToioLedColor& led,
                              const ToioMotorState& motor, bool pose_dirty,
                              bool battery_dirty,
                              uint32_t refresh_interval_ms) {
@@ -84,6 +84,7 @@ void UiHelpers::UpdateStatus(const CubePose& pose, bool has_pose,
   status_.has_pose = has_pose;
   status_.battery_level = battery_level;
   status_.has_battery = has_battery;
+  status_.board_voltage = board_voltage;
   status_.led = led;
   status_.motor = motor;
 
@@ -123,6 +124,9 @@ void UiHelpers::ShowStatus(uint32_t now_ms) {
     display.printf("Battery: %3u%%", status_.battery_level);
     M5.Log.printf("battery=%u%%", status_.battery_level);
   }
+  display.printf("Board V: %.2fV\n", status_.board_voltage);
+  M5.Log.printf(" board_v=%.2fV", status_.board_voltage);
+
   display.printf("LED RGB:(%3u,%3u,%3u)\n", status_.led.r, status_.led.g,
                  status_.led.b);
   display.printf("Motor L:%4d R:%4d\n", status_.motor.left_speed,
