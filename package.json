@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "workspaces": [
-    "acoustics/web/backend",
-    "acoustics/web/dashboard"
+    "toio_control/web/backend",
+    "toio_control/web/dashboard"
   ]
 }
