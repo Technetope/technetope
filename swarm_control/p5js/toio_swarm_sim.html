@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toio Swarm Simulation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.js"></script>
+    <!-- p5.guiはオプショナル（エラーが出ても動作する） -->
+    <script src="https://cdn.jsdelivr.net/npm/p5.gui@0.6.1/libraries/p5.gui.js" 
+            onerror="console.warn('p5.gui failed to load, GUI features disabled')"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        #canvas-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .info {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 8px;
+        }
+        h1 {
+            text-align: center;
+            color: #4a9eff;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h1>Toio Swarm Simulation</h1>
+        <p>30台のtoioロボットが人間の動きに反応しながら群れ行動を示すシミュレーション</p>
+    </div>
+    <div id="canvas-container"></div>
+    
+    <script src="params.js"></script>
+    <script src="spot_potential.js"></script>
+    <script src="urgent_escape.js"></script>
+    <script src="boid_model.js"></script>
+    <script src="spatial_density_grid.js"></script>
+    <script src="cluster_detector.js"></script>
+    <script src="predictive_avoidance.js"></script>
+    <script src="robot_agent.js"></script>
+    <script src="sketch.js"></script>
+</body>
+</html>
+

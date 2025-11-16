@@ -172,6 +172,24 @@ void OscListener::issueReceive() {
         });
 }
 
+void OscListener::enableEncryption(const OscEncryptor::Key256& key,
+                                   const OscEncryptor::Iv128& iv) {
+    std::lock_guard lock(mutex_);
+    encryptor_.setKey(key, iv);
+    receiveCounter_ = 0;
+}
+
+void OscListener::disableEncryption() {
+    std::lock_guard lock(mutex_);
+    encryptor_.clear();
+    receiveCounter_ = 0;
+}
+
+bool OscListener::encryptionEnabled() const {
+    std::lock_guard lock(mutex_);
+    return encryptor_.enabled();
+}
+
 void OscListener::handleReceive(std::error_code ec, std::size_t bytesReceived) {
     if (ec) {
         if (running_.load()) {
@@ -187,7 +205,52 @@ void OscListener::handleReceive(std::error_code ec, std::size_t bytesReceived) {
                       remoteEndpoint_.port(),
                       bytesReceived);
         std::vector<std::uint8_t> payload(buffer_.begin(), buffer_.begin() + static_cast<std::ptrdiff_t>(bytesReceived));
-        Packet packet = decodePacket(payload);
+        
+        // 暗号化が有効な場合、復号処理を行う
+        std::vector<std::uint8_t> decryptedPayload;
+        {
+            std::lock_guard lock(mutex_);
+            if (encryptor_.enabled()) {
+                if (payload.size() < sizeof(std::uint64_t)) {
+                    spdlog::warn("Encrypted OSC packet too short from {}:{}",
+                                 remoteEndpoint_.address().to_string(),
+                                 remoteEndpoint_.port());
+                    if (running_.load()) {
+                        issueReceive();
+                    }
+                    return;
+                }
+                
+                // 先頭8バイトをcounterとして読み取る
+                std::uint64_t counter = 0;
+                for (std::size_t i = 0; i < sizeof(counter); ++i) {
+                    counter = (counter << 8) | static_cast<std::uint64_t>(payload[i]);
+                }
+                
+                if (counter == 0) {
+                    spdlog::warn("Invalid encryption counter (0) from {}:{}",
+                                 remoteEndpoint_.address().to_string(),
+                                 remoteEndpoint_.port());
+                    if (running_.load()) {
+                        issueReceive();
+                    }
+                    return;
+                }
+                
+                // counterからIVを導出
+                auto iv = encryptor_.deriveIv(counter);
+                
+                // 残りの部分を復号化（CTRモードではencrypt()で復号化も可能）
+                std::vector<std::uint8_t> ciphertext(
+                    payload.begin() + static_cast<std::ptrdiff_t>(sizeof(counter)),
+                    payload.end());
+                decryptedPayload = encryptor_.encrypt(ciphertext, iv);
+            } else {
+                decryptedPayload = payload;
+            }
+        }
+        
+        Packet packet = decodePacket(decryptedPayload);
         if (spdlog::should_log(spdlog::level::debug)) {
             spdlog::debug("OSC packet decoded from {}:{} ({} bytes)",
                           remoteEndpoint_.address().to_string(),

@@ -83,6 +83,11 @@ public:
     void start();
     void stop();
 
+    void enableEncryption(const OscEncryptor::Key256& key,
+                          const OscEncryptor::Iv128& iv);
+    void disableEncryption();
+    bool encryptionEnabled() const;
+
 private:
     void issueReceive();
     void handleReceive(std::error_code ec, std::size_t bytesReceived);
@@ -92,6 +97,9 @@ private:
     std::array<std::uint8_t, 4096> buffer_{};
     Endpoint remoteEndpoint_{};
     std::atomic_bool running_{false};
+    OscEncryptor encryptor_;
+    std::uint64_t receiveCounter_{0};
+    mutable std::mutex mutex_;
 };
 
 }  // namespace acoustics::osc
