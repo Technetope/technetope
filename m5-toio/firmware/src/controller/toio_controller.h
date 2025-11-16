@@ -23,16 +23,17 @@ struct ToioMotorState {
 class ToioController {
  public:
   enum class InitStatus {
-    kReady,
+    kScanReady,
+    kConnected,
     kNoCubeFound,
-    kTargetNotFound,
     kConnectionFailed,
     kInvalidArgument,
+    kTargetNotFound,
   };
 
-  InitStatus scanTargets(const std::string& target_fragment,
-                         uint32_t scan_duration_sec, ToioCore** out_target);
-  InitStatus connectAndConfigure(ToioCore* target_core);
+  InitStatus scan(uint32_t scan_duration_sec,
+                  std::vector<std::string>* out_suffixes);
+  InitStatus connectBySuffix(const std::string& suffix);
   void loop();
 
   bool hasActiveCore() const { return active_core_ != nullptr; }
@@ -61,9 +62,11 @@ class ToioController {
                      float reverse_hysteresis_deg = 10.0f);
 
  private:
-  std::vector<ToioCore*> scan(uint32_t duration_sec);
-  ToioCore* pickTarget(const std::vector<ToioCore*>& cores,
-                       const std::string& fragment) const;
+  struct ScanEntry {
+    ToioCore* core = nullptr;
+    std::string suffix;
+  };
+
   InitStatus connectCore(ToioCore* core);
   void configureCore(ToioCore* core);
   void handleIdData(const ToioCoreIDData& data);
@@ -72,7 +75,7 @@ class ToioController {
 
   Toio toio_;
   ToioCore* active_core_ = nullptr;
-  std::vector<ToioCore*> last_scan_results_;
+  std::vector<ScanEntry> last_scan_results_;
 
   CubePose pose_{};
   bool has_pose_ = false;

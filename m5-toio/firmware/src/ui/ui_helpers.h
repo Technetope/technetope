@@ -1,6 +1,8 @@
 #pragma once
 
 #include <stdint.h>
+#include <string>
+#include <vector>
 
 #include "controller/toio_controller.h"
 
@@ -9,6 +11,8 @@ class UiHelpers {
   void Begin();
   void DrawHeader(const char* message);
   void ShowInitResult(ToioController::InitStatus status);
+   // スキャン結果（suffix 一覧）のログ＋画面出力
+  void LogScanResults(const std::vector<std::string>& suffixes);
   void UpdateStatus(const CubePose& pose, bool has_pose, uint8_t battery_level,
                     bool has_battery, const ToioLedColor& led,
                     const ToioMotorState& motor, bool pose_dirty,

@@ -2,46 +2,72 @@
 
 #include <cmath>
 
-ToioController::InitStatus ToioController::scanTargets(
-    const std::string& target_fragment, uint32_t scan_duration_sec,
-    ToioCore** out_target) {
-  scan_duration_sec_ = scan_duration_sec;
-
-  auto cores = scan(scan_duration_sec_);
-  if (cores.empty()) {
-    if (out_target) {
-      *out_target = nullptr;
-    }
-    return InitStatus::kNoCubeFound;
+namespace {
+std::string ExtractToioSuffix(const std::string& name) {
+  constexpr char kPrefix[] = "toio-";
+  if (name.rfind(kPrefix, 0) == 0 && name.size() > sizeof(kPrefix) - 1) {
+    return name.substr(sizeof(kPrefix) - 1);
   }
-
-  ToioCore* target = pickTarget(cores, target_fragment);
-  if (!target) {
-    if (out_target) {
-      *out_target = nullptr;
-    }
-    return InitStatus::kTargetNotFound;
-  }
-
-  if (out_target) {
-    *out_target = target;
-  }
-  return InitStatus::kReady;
+  return name;
 }
+}  // namespace
 
-ToioController::InitStatus ToioController::connectAndConfigure(
-    ToioCore* target_core) {
-  if (!target_core) {
+ToioController::InitStatus ToioController::scan(
+    uint32_t scan_duration_sec, std::vector<std::string>* out_suffixes) {
+  if (!out_suffixes) {
     return InitStatus::kInvalidArgument;
   }
 
-  InitStatus status = connectCore(target_core);
-  if (status != InitStatus::kReady) {
-    return status;
+  scan_duration_sec_ = scan_duration_sec;
+  last_scan_results_.clear();
+  out_suffixes->clear();
+
+  auto cores = toio_.scan(scan_duration_sec_);
+  if (cores.empty()) {
+    return InitStatus::kNoCubeFound;
   }
 
-  configureCore(target_core);
-  return InitStatus::kReady;
+  last_scan_results_.reserve(cores.size());
+  out_suffixes->reserve(cores.size());
+
+  for (auto* core : cores) {
+    ScanEntry entry;
+    entry.core = core;
+    entry.suffix = ExtractToioSuffix(core->getName());
+    last_scan_results_.push_back(entry);
+    out_suffixes->push_back(entry.suffix);
+  }
+
+  return InitStatus::kScanReady;
+}
+
+ToioController::InitStatus ToioController::connectBySuffix(
+    const std::string& suffix) {
+  if (last_scan_results_.empty()) {
+    return InitStatus::kTargetNotFound;
+  }
+
+  ToioCore* target = nullptr;
+  if (suffix.empty()) {
+    target = last_scan_results_.front().core;
+  } else {
+    for (const auto& entry : last_scan_results_) {
+      if (entry.suffix == suffix) {
+        target = entry.core;
+        break;
+      }
+    }
+  }
+
+  if (!target) {
+    return InitStatus::kTargetNotFound;
+  }
+  InitStatus status = connectCore(target);
+  if (status != InitStatus::kConnected) {
+    return status;
+  }
+  configureCore(target);
+  return InitStatus::kConnected;
 }
 
 void ToioController::loop() {
@@ -102,28 +128,6 @@ void ToioController::setGoalTuning(float vmax, float wmax, float k_r,
                           reverse_hysteresis_deg);
 }
 
-std::vector<ToioCore*> ToioController::scan(uint32_t duration_sec) {
-  last_scan_results_ = toio_.scan(duration_sec);
-  return last_scan_results_;
-}
-
-ToioCore* ToioController::pickTarget(
-    const std::vector<ToioCore*>& cores, const std::string& fragment) const {
-  if (cores.empty()) {
-    return nullptr;
-  }
-  if (fragment.empty()) {
-    return cores.front();
-  }
-  for (auto* core : cores) {
-    const std::string& name = core->getName();
-    if (name.find(fragment) != std::string::npos) {
-      return core;
-    }
-  }
-  return nullptr;
-}
-
 ToioController::InitStatus ToioController::connectCore(ToioCore* core) {
   if (!core) {
     return InitStatus::kInvalidArgument;
@@ -131,7 +135,7 @@ ToioController::InitStatus ToioController::connectCore(ToioCore* core) {
   if (!core->connect()) {
     return InitStatus::kConnectionFailed;
   }
-  return InitStatus::kReady;
+  return InitStatus::kConnected;
 }
 
 void ToioController::configureCore(ToioCore* core) {

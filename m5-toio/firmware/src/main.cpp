@@ -7,6 +7,7 @@
 namespace {
 constexpr uint32_t kScanDurationSec = 3;
 constexpr uint32_t kRefreshIntervalMs = 1000;
+constexpr char kTargetSuffix[] = "m7d";
 
 ToioController g_toio;
 UiHelpers g_ui;
@@ -22,6 +23,7 @@ void InitializeM5Hardware() {
   g_ui.Begin();
   g_ui.DrawHeader("Scanning...");
 }
+}  // namespace
 
 void PerformStartupTest() {
   constexpr uint8_t kLedR = 0x00;
@@ -47,28 +49,26 @@ void InitGoalFollowing() {
                        /*reverse_hysteresis_deg=*/10.0f);
   g_toio.setGoal(g_goalX, g_goalY, /*stop_distance=*/20.0f);
 }
-}  // namespace
 
 void setup() {
   InitializeM5Hardware();
 
-  std::string TargetFragment = "m7d";
+  std::vector<std::string> scan_results;
+  auto status = g_toio.scan(kScanDurationSec, &scan_results);
+  g_ui.ShowInitResult(status);
+  if (status != ToioController::InitStatus::kScanReady) {
+    return;
+  }
+  g_ui.LogScanResults(scan_results);
+  delay(1000);
 
-  ToioCore* target = nullptr;
-  auto scan_status =
-      g_toio.scanTargets(TargetFragment, kScanDurationSec, &target);
-  if (scan_status != ToioController::InitStatus::kReady) {
-    g_ui.ShowInitResult(scan_status);
+  g_ui.DrawHeader("Connecting...");
+  status = g_toio.connectBySuffix(kTargetSuffix);
+  g_ui.ShowInitResult(status);
+  if (status != ToioController::InitStatus::kConnected) {
     return;
   }
 
-  auto connect_status = g_toio.connectAndConfigure(target);
-  if (connect_status != ToioController::InitStatus::kReady) {
-    g_ui.ShowInitResult(connect_status);
-    return;
-  }
-
-  g_ui.ShowInitResult(ToioController::InitStatus::kReady);
   g_ui.UpdateStatus(g_toio.pose(), g_toio.hasPose(), g_toio.batteryLevel(),
                     g_toio.hasBatteryLevel(), g_toio.ledColor(),
                     g_toio.motorState(),
@@ -76,15 +76,11 @@ void setup() {
                     kRefreshIntervalMs);
   g_toio.clearPoseDirty();
   g_toio.clearBatteryDirty();
-
   PerformStartupTest();
   InitGoalFollowing();
 }
 
 void loop() {
-  // InitGoalFollowing(); // testing
-  g_toio.driveMotor(-30, -30);
-
   M5.update();
   g_toio.loop();
 
@@ -100,7 +96,6 @@ void loop() {
                     g_toio.hasBatteryLevel(), g_toio.ledColor(),
                     g_toio.motorState(), pose_dirty, battery_dirty,
                     kRefreshIntervalMs);
-
   if (pose_dirty) {
     g_toio.clearPoseDirty();
   }

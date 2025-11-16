@@ -33,7 +33,10 @@ void UiHelpers::DrawHeader(const char* message) {
 void UiHelpers::ShowInitResult(ToioController::InitStatus status) {
   const char* message = nullptr;
   switch (status) {
-    case ToioController::InitStatus::kReady:
+    case ToioController::InitStatus::kScanReady:
+      message = "Scan succeeded";
+      break;
+    case ToioController::InitStatus::kConnected:
       message = "Connected";
       break;
     case ToioController::InitStatus::kNoCubeFound:
@@ -52,6 +55,23 @@ void UiHelpers::ShowInitResult(ToioController::InitStatus status) {
   }
   DrawHeader(message);
   M5.Log.println(message);
+}
+
+void UiHelpers::LogScanResults(const std::vector<std::string>& suffixes) {
+  M5.Log.printf("Scan results: %zu device(s)\n",
+                static_cast<unsigned long>(suffixes.size()));
+  auto& display = M5.Display;
+  display.fillRect(0, kStatusAreaY, display.width(),
+                   display.height() - kStatusAreaY, BLACK);
+  display.setCursor(0, kStatusAreaY);
+  display.setTextColor(WHITE, BLACK);
+  display.printf("Scan: %zu device(s)\n",
+                 static_cast<unsigned long>(suffixes.size()));
+
+  for (size_t i = 0; i < suffixes.size(); ++i) {
+    M5.Log.printf("  [%zu] suffix=%s\n", i, suffixes[i].c_str());
+    display.printf("  [%zu] %s\n", i, suffixes[i].c_str());
+  }
 }
 
 void UiHelpers::UpdateStatus(const CubePose& pose, bool has_pose,
