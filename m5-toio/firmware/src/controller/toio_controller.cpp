@@ -139,8 +139,10 @@ ToioController::InitStatus ToioController::connectCore(ToioCore* core) {
 }
 
 void ToioController::configureCore(ToioCore* core) {
-  core->setIDnotificationSettings(/*minimum_interval=*/5, /*condition=*/0x01);
+  core->setIDnotificationSettings(/*minimum_interval=*/5, /*condition=*/0x01); 
+  // 5*10ms=50msごとにID通知、condition=0x01で位置変化時に通知
   core->setIDmissedNotificationSettings(/*sensitivity=*/10);
+  // 10*10ms=100ms間IDが読めなかったら通知
   core->onIDReaderData([this](ToioCoreIDData data) { handleIdData(data); });
   core->onBattery([this](uint8_t level) { handleBatteryLevel(level); });
 
