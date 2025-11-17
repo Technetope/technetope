@@ -6,6 +6,7 @@
 #include <optional>
 #include "params.hpp"
 #include "human_spot.hpp"
+#include "velocity.hpp"
 
 namespace swarm_control {
 
@@ -30,10 +31,6 @@ public:
     bool isUrgent(int robotIndex) const;
     
     // 緊急退避の速度を取得
-    struct Velocity {
-        double vx = 0.0;
-        double vy = 0.0;
-    };
     std::optional<Velocity> computeUrgentVelocity(int robotIndex) const;
 
 private:
@@ -47,4 +44,3 @@ private:
 };
 
 }  // namespace swarm_control
-

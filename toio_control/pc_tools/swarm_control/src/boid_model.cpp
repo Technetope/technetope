@@ -179,6 +179,7 @@ Velocity BoidModel::computeCohesion(const RobotAgent* robot,
 void BoidModel::applyFlocking(std::vector<RobotAgent*>& robots,
                               std::vector<Velocity>& robotStates,
                               double dt) {
+    (void)dt;  // 現状の実装では未使用
     updateSpatialHash(robots);
     
     static std::random_device rd;
@@ -227,4 +228,3 @@ void BoidModel::applyFlocking(std::vector<RobotAgent*>& robots,
 }
 
 }  // namespace swarm_control
-

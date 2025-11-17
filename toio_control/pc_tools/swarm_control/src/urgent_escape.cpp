@@ -20,9 +20,6 @@ void UrgentEscape::checkUrgentEscape(std::vector<RobotAgent*>& robots,
         for (size_t i = 0; i < robots.size(); ++i) {
             auto* robot = robots[i];
             auto pos = robot->getPosition();
-            
-            const double dx = pos.x - spot.headX;
-            const double dy = pos.y - spot.headY;
             const double dist = utils::distance(pos.x, pos.y, spot.headX, spot.headY);
             
             // 閾値を広げる（反応を早く、2倍の範囲で反応）
@@ -87,7 +84,7 @@ bool UrgentEscape::isUrgent(int robotIndex) const {
     return it != urgentStates_.end() && it->second.active;
 }
 
-std::optional<UrgentEscape::Velocity> UrgentEscape::computeUrgentVelocity(int robotIndex) const {
+std::optional<Velocity> UrgentEscape::computeUrgentVelocity(int robotIndex) const {
     auto it = urgentStates_.find(robotIndex);
     if (it == urgentStates_.end() || !it->second.active) {
         return std::nullopt;
@@ -102,4 +99,3 @@ std::optional<UrgentEscape::Velocity> UrgentEscape::computeUrgentVelocity(int ro
 }
 
 }  // namespace swarm_control
-

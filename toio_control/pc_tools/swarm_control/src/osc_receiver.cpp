@@ -106,17 +106,15 @@ void OscReceiver::stop() {
 
 void OscReceiver::handlePacket(const toio_control::osc::Packet& packet, 
                                const toio_control::osc::OscListener::Endpoint& endpoint) {
+    (void)endpoint;  // 現状はポート情報を使用しない
     try {
-        if (packet.isBundle()) {
-            const auto& bundle = packet.asBundle();
+        if (std::holds_alternative<toio_control::osc::Bundle>(packet)) {
+            const auto& bundle = std::get<toio_control::osc::Bundle>(packet);
             for (const auto& element : bundle.elements) {
-                if (element.isMessage()) {
-                    const auto& message = element.asMessage();
-                    processMessage(message);
-                }
+                processMessage(element);
             }
-        } else if (packet.isMessage()) {
-            const auto& message = packet.asMessage();
+        } else {
+            const auto& message = std::get<toio_control::osc::Message>(packet);
             processMessage(message);
         }
     } catch (const std::exception& ex) {
@@ -225,6 +223,7 @@ void OscReceiver::processHeartbeat(const toio_control::osc::Message& message) {
         } else {
             return;
         }
+        (void)micros;  // 送信元時刻の細分部分は現状未使用
         
         // レイテンシを計算（簡易版、実際の時刻同期が必要）
         auto now = std::chrono::system_clock::now();

@@ -43,6 +43,7 @@ std::pair<double, double> SpotPotentialField::getPosition(int gridX, int gridY) 
 
 void SpotPotentialField::updateSpots(const std::vector<HumanSpot>& spots,
                                       const std::vector<RobotAgent*>& robots) {
+    (void)robots;  // 現状ロボット位置は未使用
     spots_ = spots;
     updateCounter_++;
     
@@ -170,4 +171,3 @@ double SpotPotentialField::getPotential(double x, double y) const {
 }
 
 }  // namespace swarm_control
-

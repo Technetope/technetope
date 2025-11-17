@@ -21,6 +21,7 @@ namespace {
 using json = nlohmann::json;
 
 std::string timePointToIso(std::chrono::steady_clock::time_point tp) {
+    (void)tp;  // steady_clockを直接ISO化しない
     // steady_clockはepoch timeを持たないので、system_clockに変換できない
     // 代わりに、経過時間を文字列化するか、system_clockを使用
     auto now = std::chrono::system_clock::now();
@@ -45,7 +46,7 @@ std::chrono::steady_clock::time_point isoToTimePoint(const std::string& iso) {
 #else
     auto timeT = timegm(&tm);
 #endif
-    auto systemTp = std::chrono::system_clock::from_time_t(timeT);
+    (void)timeT;  // 現状は近似として現在時刻を返す
     // system_clockからsteady_clockへの変換は近似（現在時刻を使用）
     return std::chrono::steady_clock::now();
 }
@@ -70,7 +71,12 @@ SpeedCategory stringToCategory(const std::string& str) {
 
 DeviceManager::DeviceManager(toio_control::common::DeviceRegistry* registry,
                              const std::filesystem::path& storagePath)
-    : registry_(registry), storagePath_(storagePath), nextConnectionOrder_(1) {
+    : registry_(registry),
+      assignments_(),
+      indexToDeviceId_(),
+      freeIndices_(),
+      nextConnectionOrder_(1),
+      storagePath_(storagePath) {
     if (!registry_) {
         throw std::invalid_argument("DeviceRegistry cannot be null");
     }

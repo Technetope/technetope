@@ -4,16 +4,12 @@
 #include <optional>
 #include <limits>
 #include "params.hpp"
+#include "position.hpp"
 
 namespace swarm_control {
 
 // 前方宣言
 class RobotAgent;
-
-struct Position {
-    double x = 0.0;
-    double y = 0.0;
-};
 
 struct Cluster {
     std::vector<int> indices;              // クラスタ内のロボットインデックス
@@ -68,4 +64,3 @@ private:
 };
 
 }  // namespace swarm_control
-

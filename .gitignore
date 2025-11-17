@@ -43,6 +43,7 @@ install_manifest.txt
 compile_commands.json
 
 # Project-specific build artifacts
+toio_control/build/
 acoustics/build/
 swarm/**/build/
 
@@ -57,7 +58,7 @@ acoustics/firmware/.piolibdeps/
 
 # Firmware secrets (local only)
 acoustics/firmware/include/Secrets.h
-secrets/
+# secrets/
 acoustics/secrets/osc_config.json
 
 # IDE settings

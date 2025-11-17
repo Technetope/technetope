@@ -16,9 +16,9 @@ SpatialDensityGrid::SpatialDensityGrid() {
     
     // 3レイヤーを初期化
     layers_.resize(3);
-    layers_[0] = {50.0, 1.0, "near"};
-    layers_[1] = {100.0, 0.6, "medium"};
-    layers_[2] = {200.0, 0.3, "far"};
+    layers_[0] = GridLayer{50.0, 1.0, "near", {}, 0, 0};
+    layers_[1] = GridLayer{100.0, 0.6, "medium", {}, 0, 0};
+    layers_[2] = GridLayer{200.0, 0.3, "far", {}, 0, 0};
     
     initialize();
 }
@@ -148,4 +148,3 @@ std::optional<DirectionalDensity> SpatialDensityGrid::getLeastCrowdedDirection(
 }
 
 }  // namespace swarm_control
-

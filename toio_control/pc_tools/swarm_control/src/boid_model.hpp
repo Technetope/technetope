@@ -4,16 +4,12 @@
 #include <vector>
 #include <string>
 #include "params.hpp"
+#include "velocity.hpp"
 
 namespace swarm_control {
 
 // 前方宣言
 class RobotAgent;
-
-struct Velocity {
-    double vx = 0.0;
-    double vy = 0.0;
-};
 
 class BoidModel {
 public:
@@ -69,4 +65,3 @@ private:
 };
 
 }  // namespace swarm_control
-

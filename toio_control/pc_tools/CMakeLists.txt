@@ -7,6 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(CTest)
 
+find_package(OpenSSL REQUIRED)
+
 option(TOIO_CONTROL_ENABLE_ASAN "Enable AddressSanitizer for local builds" OFF)
 
 if(TOIO_CONTROL_ENABLE_ASAN)

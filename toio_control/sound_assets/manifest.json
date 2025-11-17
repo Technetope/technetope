@@ -109,7 +109,7 @@
     {
       "id": "Csharp3_mf",
       "file": "/presets/mother_mf/Csharp3_mf.wav",
-      "sample_rate": 16000
+      "sample_rate": 16000,
       "gain": 1.0,
       "length_ms": 1000,
       "notes": "MOTHER Earth MF bass note C#3."

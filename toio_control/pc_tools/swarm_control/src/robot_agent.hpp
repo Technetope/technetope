@@ -7,6 +7,8 @@
 #include <limits>
 #include "params.hpp"
 #include "human_spot.hpp"
+#include "position.hpp"
+#include "velocity.hpp"
 #include "utils.hpp"
 
 namespace swarm_control {
@@ -20,16 +22,6 @@ enum class SpeedCategory {
     FAST,      // 20%: 能動的、回避を無視
     MODERATE,  // 60%: 中程度
     SLOW       // 20%: 遅い
-};
-
-struct Position {
-    double x = 0.0;
-    double y = 0.0;
-};
-
-struct Velocity {
-    double vx = 0.0;
-    double vy = 0.0;
 };
 
 struct DifferentialDrive {
@@ -100,7 +92,7 @@ private:
     // 自律性関連
     double currentHeading_ = 0.0;        // 現在の進行方向 (rad)
     double headingPersistence_ = 0.0;    // 方向保持時間
-    double lastHeadingChange_ = 0.0;    // 最後に方向を変えた時刻
+    [[maybe_unused]] double lastHeadingChange_ = 0.0;    // 最後に方向を変えた時刻
     double sharpTurnTimer_ = 0.0;        // 急旋回タイマー
     double explorationDirection_ = 0.0;   // 探索方向 (rad)
     double explorationTimer_ = 0.0;      // 探索タイマー
@@ -126,19 +118,19 @@ private:
     double forceMoveTimer_ = 0.0;
     
     // エントロピー
-    double entropy_ = 0.5;
+    [[maybe_unused]] double entropy_ = 0.5;
     std::vector<double> entropyHistory_;
     
     // 動的パラメータ
-    double dynamicParameterTimer_ = 0.0;
+    [[maybe_unused]] double dynamicParameterTimer_ = 0.0;
     double dynamicParameterInterval_ = 0.0;
     double parameterVariation_ = 0.0;
     
     // 向きベースの移動
     double targetOrientation_ = 0.0;
-    double orientationSpeed_ = 0.0;
+    [[maybe_unused]] double orientationSpeed_ = 0.0;
     double maxOrientationSpeed_ = 0.0;
-    bool isRotating_ = false;
+    [[maybe_unused]] bool isRotating_ = false;
     
     // 速度の平滑化
     double smoothedVx_ = 0.0, smoothedVy_ = 0.0;
@@ -166,4 +158,3 @@ private:
 };
 
 }  // namespace swarm_control
-

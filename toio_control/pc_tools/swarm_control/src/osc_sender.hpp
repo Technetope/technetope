@@ -47,7 +47,7 @@ private:
     std::unique_ptr<toio_control::osc::IoContextRunner> ioContextRunner_;
     std::unique_ptr<toio_control::osc::OscSender> sender_;
     std::string address_;
-    int port_;
+    [[maybe_unused]] int port_;
     bool connected_ = false;
     
     // OSCアドレスのパターン
@@ -57,4 +57,3 @@ private:
 };
 
 }  // namespace swarm_control
-

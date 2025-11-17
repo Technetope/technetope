@@ -266,6 +266,7 @@ void RobotAgent::updateHomeostasis(double dt,
 Position RobotAgent::findPathAroundHumanFeet(
     const std::vector<HumanSpot>& humanSpots,
     const std::vector<RobotAgent*>& robots) {
+    (void)robots;  // 現状はロボット一覧を使用しない
     
     // 簡易実装：人間の足を避ける
     Position target;
@@ -346,6 +347,7 @@ void RobotAgent::applyCollisionAvoidance(const std::vector<RobotAgent*>& otherRo
                                          double dt,
                                          SpatialDensityGrid* densityGrid,
                                          PredictiveAvoidance* predictiveAvoidance) {
+    (void)dt;  // 現在のロジックでは時間ステップを使用しない
     double avoidanceX = 0.0, avoidanceY = 0.0;
     
     // 能動的ロボット（FAST）は混雑度回避と予測回避をスキップ
@@ -400,11 +402,8 @@ void RobotAgent::applyCollisionAvoidance(const std::vector<RobotAgent*>& otherRo
         }
     }
     
-    // 重み付けして合成
-    const double weightCrowd = params::g_params.densityGrid.weightCrowdAvoidance;
-    const double weightPredictive = params::g_params.densityGrid.weightPredictive;
+    // 重み付けして合成（現状は衝突回避重みのみ使用）
     const double weightCollision = params::g_params.densityGrid.weightCollision;
-    
     vx_ += avoidanceX * weightCollision;
     vy_ += avoidanceY * weightCollision;
 }
@@ -496,4 +495,3 @@ std::vector<RobotAgent*> RobotAgent::getNeighborsWithinDistance(
 }
 
 }  // namespace swarm_control
-

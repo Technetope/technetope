@@ -13,6 +13,7 @@
 #include "spot_potential.hpp"
 #include "urgent_escape.hpp"
 #include "boid_model.hpp"
+#include "velocity.hpp"
 #include "osc_sender.hpp"
 #include "osc_receiver.hpp"
 #include "device_manager.hpp"
@@ -27,7 +28,6 @@
 #include <spdlog/spdlog.h>
 
 using namespace swarm_control;
-using boid_model::Velocity;
 
 // 人間の位置情報を更新（テスト用）
 void updateHumanSpots(std::vector<HumanSpot>& humanSpots) {
@@ -43,6 +43,8 @@ void updateHumanSpots(std::vector<HumanSpot>& humanSpots) {
 }
 
 int main(int argc, char* argv[]) {
+    (void)argc;
+    (void)argv;
     // パラメータを初期化
     params::initializeParams();
     
@@ -348,4 +350,3 @@ int main(int argc, char* argv[]) {
     
     return 0;
 }
-
