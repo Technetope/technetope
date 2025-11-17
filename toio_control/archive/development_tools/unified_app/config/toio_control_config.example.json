@@ -1,0 +1,26 @@
+{
+  "osc": {
+    "listen_port": 5006,
+    "send_port": 5005,
+    "send_address": "255.255.255.255",
+    "broadcast": true,
+    "encryption": {
+      "enabled": true,
+      "key_file": "toio_control/secrets/osc_config.json"
+    }
+  },
+  "swarm": {
+    "enabled": true,
+    "assignment_storage": "state/swarm_assignments.json",
+    "device_registry": "state/devices.json"
+  },
+  "scheduler": {
+    "enabled": true,
+    "timeline_path": "toio_control/pc_tools/scheduler/examples/basic_timeline.json",
+    "lead_time": 3.0,
+    "bundle_spacing": 0.01,
+    "target_map": "",
+    "default_targets": []
+  }
+}
+

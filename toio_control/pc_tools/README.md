@@ -1,48 +1,84 @@
 # PC Tools Module
 
-Utilities for the sequencing, monitoring, and real-time control workflow live here.  
-PCツール群は C++17 + CMake を想定した再構築中であり、以下のサブモジュールに分割する。
+PCツール群は C++17 + CMake を想定した再構築中であり、以下のサブモジュールに分割されています。
 
-- `scheduler/`: タイムライン編集、OSCバンドル生成、コマンド送出（`CLI11`, `nlohmann/json`, `asio`, `fmt`, `spdlog`）。`acoustics_scheduler` ライブラリとして共通ロジックを切り出しており、CLI/GUI/サービスから同一コードパスで利用できる。
-- `monitor/`: 遅延計測・心拍受信・ログ集約（`asio`, `spdlog`）。`DeviceRegistry` が `/announce` を永続化し、CSV ログを追記する。
-- `libs/`: 共有ユーティリティ（OSC パケット・トランスポート、DeviceRegistry、暗号フック）を配置予定
+## モジュール構成
 
-セットアップ手順例:
-1. `cmake -S acoustics/pc_tools -B build -DCMAKE_BUILD_TYPE=Release`
-2. `cmake --build build` で `agent_a_scheduler` / `agent_a_monitor` をビルド。
-4. テスト実装後は `ctest --test-dir build` で `Catch2` ベースのテストを実行。
+### 1. scheduler/ - 音響タイムライン制御
+- **用途**: タイムライン編集、OSCバンドル生成、コマンド送出
+- **依存**: `CLI11`, `nlohmann/json`, `asio`, `fmt`, `spdlog`
+- **構造**: 
+  - `audio/`: 音響タイムライン関連
+  - `osc/`: OSC送信関連（低頻度バッチ送信に最適化）
+  - `config/`: 設定・ターゲット解決関連
+- **詳細**: [scheduler/README.md](scheduler/README.md)
 
-実行例:
-- Scheduler: `./build/scheduler/agent_a_scheduler acoustics/pc_tools/scheduler/examples/basic_timeline.json --host 192.168.10.255 --port 9000 --bundle-spacing 0.02 --target-map mappings/voices.json --default-targets dev-001,dev-002,dev-003 --osc-config acoustics/secrets/osc_config.json`
-  - `--osc-config`（デフォルト `acoustics/secrets/osc_config.json`）でファームウェアと共有する鍵/IV を読み込み、AES-256-CTR を常時有効化する。CLI 実行前に `acoustics/tools/secrets/gen_headers.py` で JSON → `Secrets.h` を生成しておくこと。
-  - `--dry-run` で送信せず内容を確認。表示にはタイムタグ、ターゲット ID、プリセット ID が含まれる。
-  - `--base-time 2024-05-01T21:00:00Z` でリードタイムの基準時刻を指定。タイムラインおよびオーバーライド値は 3 秒以上でなければならない。
-- Monitor: `./build/monitor/agent_a_monitor --host 0.0.0.0 --port 19100 --registry state/devices.json --csv logs/heartbeat.csv`
-  - `--count` で受信パケット上限、`Ctrl+C` または `SIGINT` で停止。
-  - `/announce` を受け取ったデバイスは `state/devices.json` に追記される。
+### 2. swarm_control/ - Toio群れ制御
+- **用途**: Toioロボット群のリアルタイム制御（群れ行動、衝突回避、人間回避など）
+- **依存**: `asio`, `spdlog`, `fmt`
+- **構造**:
+  - `algorithm/`: アルゴリズム・モデル（agent, collision, flocking, spatial）
+  - `comm/`: 通信レイヤー（OSC送受信、高頻度送信に最適化）
+  - `config/`: 設定
+  - `utils/`: ユーティリティ（device, types, utils）
+- **詳細**: [swarm_control/README.md](swarm_control/README.md)
 
-## Testing
-- `cmake -S acoustics/pc_tools -B build/acoustics` で依存解決とビルド設定を実施。テストのみ再ビルドする場合は `cmake --build build/acoustics --target acoustics_scheduler_tests` を利用。
-- すべての Catch2 テストは `ctest --test-dir build/acoustics --output-on-failure` で実行。失敗ケースのみ確認する際は `ctest --test-dir build/acoustics --rerun-failed --output-on-failure` が便利。
-- 個別テストやタグ指定が必要なら `build/acoustics/scheduler/acoustics_scheduler_tests -v [scheduler]` のように Catch2 バイナリを直接起動。
-- CI に組み込む場合も同じ手順（`cmake` → `cmake --build` → `ctest`）をジョブ内で順に呼び出すだけで再現可能。
+### 3. monitor/ - 遅延計測・心拍受信・ログ集約
+- **用途**: デバイス監視、心拍受信、ログ集約
+- **依存**: `asio`, `spdlog`
+- **機能**: `DeviceRegistry` が `/announce` を永続化し、CSV ログを追記
 
-### ファイアウォール設定例
+### 4. libs/ - 共有ユーティリティ
+- **内容**: OSC パケット・トランスポート、DeviceRegistry、暗号フック
+- **用途**: 全モジュールで共有される共通ライブラリ
 
-モニタは UDP/19100 を待ち受けるため、ホスト OS のファイアウォールでポートを開放する必要があります。
+## OSC送信実装の違い
 
-- **nftables**
-  ```bash
-  sudo nft insert rule inet filter input udp dport 19100 accept
-  sudo nft list chain inet filter input
-  ```
-- **iptables**
-  ```bash
-  sudo iptables -I INPUT -p udp --dport 19100 -j ACCEPT
-  sudo iptables-save | sudo tee /etc/iptables/iptables.rules
-  ```
+### scheduler (音響制御)
+- **クラス**: `toio_control::scheduler::osc::OscBundleSender`
+- **用途**: 低頻度のバッチ送信（タイムラインに基づく）
+- **特徴**: 送信完了後に切断可能（リソース効率化）
 
-いずれの場合も、拒否ルールより前に配置されていることを確認してください。
+### swarm_control (toio制御)
+- **クラス**: `swarm_control::OscSender`
+- **用途**: 高頻度の連続送信（1秒ごとなど）
+- **特徴**: 常時接続を維持（レイテンシ最小化）
 
-各ディレクトリに `README.md` / `USAGE.md` を配置し、依存バージョンとコマンド例を併記すること。  
-旧Python原型コードは段階的に削除予定のため、C++実装を追加したら不要なスクリプトを整理する。
+詳細は [architecture_refactoring.md](../docs/architecture_refactoring.md) を参照してください。
+
+## セットアップ手順
+
+```bash
+# ビルドディレクトリを作成
+cmake -S toio_control/pc_tools -B build -DCMAKE_BUILD_TYPE=Release
+
+# ビルド
+cmake --build build
+
+# テスト実行（実装後）
+ctest --test-dir build
+```
+
+## 実行例
+
+### Scheduler
+```bash
+./build/scheduler/agent_a_scheduler \
+  scheduler/examples/basic_timeline.json \
+  --host 192.168.10.255 \
+  --port 9000 \
+  --bundle-spacing 0.02 \
+  --target-map mappings/voices.json \
+  --default-targets dev-001,dev-002,dev-003 \
+  --osc-config secrets/osc_config.json
+```
+
+### Swarm Control
+```bash
+./build/swarm_control/swarm_control \
+  --config config/swarm_config.json
+```
+
+## アーキテクチャ
+
+詳細なアーキテクチャとリファクタリングの内容については、[docs/architecture_refactoring.md](../docs/architecture_refactoring.md) を参照してください。

@@ -1,6 +1,8 @@
 #include "toio_control/scheduler/SchedulerController.h"
 
-#include "toio_control/osc/OscTransport.h"
+#include "toio_control/scheduler/osc/osc_bundle_sender.h"
+#include "toio_control/scheduler/audio/SoundTimeline.h"
+#include "toio_control/scheduler/config/TargetResolver.h"
 
 #include "json.hpp"
 
@@ -155,36 +157,28 @@ std::unordered_map<std::string, std::vector<std::string>> loadTargetMap(const st
 }
 
 void sendBundles(const std::vector<ScheduledBundle>& bundles, const SchedulerConfig& config) {
-    asio::io_context ioContext;
-    asio::ip::address address;
-    try {
-        address = asio::ip::make_address(config.host);
-    } catch (const std::exception& ex) {
-        throw std::runtime_error("Invalid destination address: " + config.host + " (" + ex.what() + ")");
-    }
-
-    toio_control::osc::OscSender sender(
-        ioContext,
-        toio_control::osc::OscSender::Endpoint(address, config.port),
-        config.broadcast);
-
+    // 音響制御用のOSC送信（低頻度バッチ送信に最適化）
+    toio_control::scheduler::osc::OscBundleSender sender(config.host, config.port, config.broadcast);
+    
     if (config.encryptOsc) {
         if (!config.oscKey || !config.oscIv) {
             throw std::runtime_error("OSC encryption enabled without key/iv material");
         }
         sender.enableEncryption(*config.oscKey, *config.oscIv);
     }
-
-    if (config.bundleSpacing < 0.01) {
-        throw std::runtime_error("--bundle-spacing must be at least 0.01 seconds");
+    
+    // バンドルを変換
+    std::vector<toio_control::osc::Bundle> oscBundles;
+    oscBundles.reserve(bundles.size());
+    for (const auto& bundle : bundles) {
+        oscBundles.push_back(bundle.toOscBundle());
     }
-
-    for (std::size_t i = 0; i < bundles.size(); ++i) {
-        sender.send(bundles[i].toOscBundle());
-        if (config.bundleSpacing > 0.0 && i + 1 < bundles.size()) {
-            std::this_thread::sleep_for(std::chrono::duration<double>(config.bundleSpacing));
-        }
-    }
+    
+    // バッチ送信（送信完了後は自動的に切断される）
+    sender.sendBundles(oscBundles, config.bundleSpacing);
+    
+    // 明示的に切断（リソースを早めに解放）
+    sender.disconnect();
 }
 
 }  // namespace
@@ -194,7 +188,7 @@ SchedulerReport SchedulerController::execute(const SchedulerConfig& config) cons
         throw std::runtime_error("Timeline path is required");
     }
 
-    auto timeline = SoundTimeline::fromJsonFile(config.timelinePath);
+    auto timeline = audio::SoundTimeline::fromJsonFile(config.timelinePath);
 
     double leadTime = config.leadTimeOverride >= 0.0
                           ? config.leadTimeOverride
@@ -311,8 +305,8 @@ std::chrono::system_clock::time_point SchedulerController::parseBaseTime(const s
     return tp;
 }
 
-TargetResolver SchedulerController::buildResolver(const SchedulerConfig& config) const {
-    TargetResolver resolver;
+config::TargetResolver SchedulerController::buildResolver(const SchedulerConfig& config) const {
+    config::TargetResolver resolver;
     if (!config.targetMapPath.empty()) {
         auto mapping = loadTargetMap(config.targetMapPath);
         resolver.setMapping(std::move(mapping));

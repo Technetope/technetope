@@ -1,7 +1,8 @@
 add_library(toio_control_scheduler STATIC
     src/SchedulerController.cpp
-    src/SoundTimeline.cpp
-    src/TargetResolver.cpp
+    src/audio/SoundTimeline.cpp
+    src/config/TargetResolver.cpp
+    src/osc/osc_bundle_sender.cpp
 )
 
 target_include_directories(toio_control_scheduler

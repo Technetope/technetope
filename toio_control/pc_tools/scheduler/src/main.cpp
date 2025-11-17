@@ -20,7 +20,7 @@
 
 namespace {
 
-using toio_control::scheduler::ScheduledBundle;
+using toio_control::scheduler::audio::ScheduledBundle;
 using json = nlohmann::json;
 
 struct OscMaterial {

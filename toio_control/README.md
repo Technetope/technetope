@@ -1,92 +1,56 @@
-# Toio Control Build Guide (Beginner Friendly)
+# Toio Control
 
-Welcome! This document walks you through setting up the `toio_control` workspace so you can build and test both the device firmware and the PC-side tools with confidence.
+Toioロボット群の制御システム（音響制御・群れ行動制御）
 
-## Project Layout
-- `firmware/` – PlatformIO project for the M5StickC Plus2 device.
-- `pc_tools/` – C++17 utilities (scheduler, monitor, swarm_control, shared OSC library).
-- `sound_assets/` – Reference WAV files and the shared sound manifest.
-- `docs/` – High level design notes that apply across the toio_control stack.
+## プロジェクト構成
 
-## Tooling Checklist
-### Common setup
-- Git, a recent shell (PowerShell, bash, zsh), and Python 3.10+.
-- CMake ≥ 3.16 and a build tool (Ninja or Make) for the C++ projects.
-- A C++17-capable compiler (GCC 11+, Clang 13+, or Visual Studio 2022).
+### PC Tools (`pc_tools/`)
+- **scheduler/**: 音響タイムライン制御
+- **swarm_control/**: Toio群れ制御
+- **monitor/**: デバイス監視・ログ集約
+- **libs/**: 共有ユーティリティ（OSC、DeviceRegistry）
 
-### Firmware (M5StickC Plus2)
-- Install PlatformIO CLI  
-  ```sh
-  pip install --user platformio
-  ```
-  or use the VS Code PlatformIO extension.
-- USB data cable plus the CH9102 serial driver (for Windows/macOS).
-- Optional: `pio settings set force_verbose yes` to see detailed logs.
+詳細は [pc_tools/README.md](pc_tools/README.md) を参照。
 
-### PC tools (scheduler / monitor)
-- Recommended package manager: `conan` or `vcpkg` (future dependency management).  
-  For now all third-party headers live under `pc_tools/third_party/`.
-- On Windows, enable the “Desktop development with C++” workload.
-- On Linux/macOS, ensure `build-essential` (Debian) or `xcode-select --install` (macOS) is available.
+### Firmware (`firmware/`)
+M5StickC Plus2向けファームウェア
 
-## Firmware Workflow
-1. **Create secrets**
-   ```sh
-   cp toio_control/secrets/osc_config.example.json toio_control/secrets/osc_config.json
-   $EDITOR toio_control/secrets/osc_config.json
-   ```
-   Fill in Wi-Fi credentials, OSC AES key/IV, heartbeat target, and NTP settings.  
-   `pio run` automatically converts this JSON into `toio_control/firmware/include/Secrets.h` via `toio_control/tools/secrets/gen_headers.py`, so you never edit the header manually.
-2. **Prepare sound assets**
-   - Place WAV files under `toio_control/firmware/data/presets/`.
-   - Update `toio_control/firmware/data/manifest.json` with the filenames and gain values.  
-     The `toio_control/sound_assets/` folder contains example material such as `presets/sample.wav`.
-3. **Build and upload**
-   ```sh
-   cd toio_control/firmware
-   pio run                      # compile the firmware
-   pio run -t upload            # flash to the M5StickC Plus2
-   pio run -t uploadfs          # (optional) upload SPIFFS sound assets
-   ```
-4. **Monitor the device**
-   ```sh
-   pio device monitor -b 115200
-   ```
-   You should see logs for Wi-Fi connection, NTP sync, OSC events, and heartbeat messages.  
-   If you just want to validate audio output, follow the checklist in `toio_control/archive/tests/audio_smoke_test.md`.
+### Documentation (`docs/`)
+- [アーキテクチャ整理とリファクタリング](docs/architecture_refactoring.md) - **重要**: 最新の整理内容
+- [OSC実装](docs/osc_implementation.md)
+- [OSC契約仕様](docs/osc_contract.md)
 
-## PC Tools Workflow
-1. **Configure a build directory**
-   ```sh
-   cmake -S toio_control/pc_tools -B build/toio_control -DCMAKE_BUILD_TYPE=Release
-   ```
-   Add `-G Ninja` if you prefer Ninja over Makefiles.
-2. **Compile the tools**
-   ```sh
-   cmake --build build/toio_control
-   ```
-   This produces:
-   - `build/toio_control/scheduler/agent_a_scheduler`
-   - `build/toio_control/monitor/agent_a_monitor`
-   - `build/toio_control/swarm_control/swarm_control`
-3. **Run the scheduler (example)**
-   ```sh
-   ./build/toio_control/scheduler/agent_a_scheduler \
-     toio_control/pc_tools/scheduler/examples/basic_timeline.json \
-     --host 255.255.255.255 --port 9000 --spacing 0.02 \
-     --osc-config toio_control/secrets/osc_config.json
-   ```
-   Use `--dry-run` to print bundles without transmitting. Set `--base-time 2024-05-01T21:00:00Z` to schedule relative to a fixed UTC time.
-4. **Run the monitor (example)**
-   ```sh
-   ./build/toio_control/monitor/agent_a_monitor --port 19100 --csv logs/heartbeat.csv
-   ```
-   Stop with `Ctrl+C`; a metrics summary prints before the program exits.
+### Archive (`archive/`)
+- **development_tools/**: 開発用ツール・実験的実装
+  - `swarm_control_p5js/`: p5.jsシミュレーション
+  - `unified_app/`: 統合アプリケーション（参考実装）
 
-## Helpful References
-- `toio_control/firmware/README.md` – Module deep dive, FreeRTOS task overview.
-- `toio_control/pc_tools/README.md` – Planned dependency strategy and CLI tips.
-- `toio_control/docs/` – Design notes and documentation.
-- `toio_control/pc_tools/swarm_control/README.md` – Swarm control system documentation.
+## クイックスタート
 
-Stuck or unsure? Check the documentation in `toio_control/docs/` or leave TODO comments near the code you are working on. Happy building!
+### ビルド
+```bash
+cmake -S toio_control/pc_tools -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+### 実行
+```bash
+# Swarm Control
+./build/swarm_control/swarm_control --config config/swarm_config.json
+
+# Scheduler
+./build/scheduler/agent_a_scheduler scheduler/examples/basic_timeline.json
+```
+
+## アーキテクチャ
+
+最新のアーキテクチャ整理については、[docs/architecture_refactoring.md](docs/architecture_refactoring.md) を参照してください。
+
+主な変更点:
+- 通信レイヤーとアルゴリズムの分離
+- 機能別ディレクトリ構造
+- 用途別OSC送信実装（scheduler vs swarm_control）
+
+## ライセンス
+
+[LICENSE](LICENSE) を参照してください。

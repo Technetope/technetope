@@ -1,5 +1,5 @@
-#include "toio_control/scheduler/SoundTimeline.h"
-#include "toio_control/scheduler/TargetResolver.h"
+#include "toio_control/scheduler/audio/SoundTimeline.h"
+#include "toio_control/scheduler/config/TargetResolver.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -38,10 +38,10 @@ TEST_CASE("SoundTimeline enforces minimum lead time", "[scheduler]") {
     })";
 
     const auto path = writeTimeline(timelineJson);
-    auto timeline = toio_control::scheduler::SoundTimeline::fromJsonFile(path);
+    auto timeline = toio_control::scheduler::audio::SoundTimeline::fromJsonFile(path);
     std::filesystem::remove(path);
 
-    toio_control::scheduler::TargetResolver resolver;
+    toio_control::scheduler::config::TargetResolver resolver;
     auto baseTime = std::chrono::system_clock::from_time_t(1'700'000'000);
 
     SECTION("timeline default lead time accepted") {
@@ -65,10 +65,10 @@ TEST_CASE("SoundTimeline expands targets via resolver", "[scheduler]") {
     })";
 
     const auto path = writeTimeline(timelineJson);
-    auto timeline = toio_control::scheduler::SoundTimeline::fromJsonFile(path);
+    auto timeline = toio_control::scheduler::audio::SoundTimeline::fromJsonFile(path);
     std::filesystem::remove(path);
 
-    toio_control::scheduler::TargetResolver resolver;
+    toio_control::scheduler::config::TargetResolver resolver;
     resolver.setMapping({
         {"voice_a", {"dev-001"}},
         {"voice_b", {"dev-010", "dev-011"}}

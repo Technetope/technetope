@@ -1,8 +1,8 @@
 #pragma once
 
 #include "toio_control/osc/OscEncryptor.h"
-#include "toio_control/scheduler/SoundTimeline.h"
-#include "toio_control/scheduler/TargetResolver.h"
+#include "toio_control/scheduler/audio/SoundTimeline.h"
+#include "toio_control/scheduler/config/TargetResolver.h"
 
 #include <chrono>
 #include <filesystem>
@@ -41,7 +41,7 @@ public:
     static std::chrono::system_clock::time_point parseBaseTime(const std::string& iso8601);
 
 private:
-    TargetResolver buildResolver(const SchedulerConfig& config) const;
+    config::TargetResolver buildResolver(const SchedulerConfig& config) const;
 };
 
 }  // namespace toio_control::scheduler

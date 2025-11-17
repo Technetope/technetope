@@ -6,38 +6,40 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ソースファイル
 set(SOURCES
-    src/params.cpp
-    src/utils.cpp
-    src/spatial_density_grid.cpp
-    src/cluster_detector.cpp
-    src/predictive_avoidance.cpp
-    src/spot_potential.cpp
-    src/urgent_escape.cpp
-    src/boid_model.cpp
-    src/robot_agent.cpp
-    src/osc_sender.cpp
-    src/osc_receiver.cpp
-    src/device_manager.cpp
-    src/config.cpp
+    src/config/params.cpp
+    src/config/config.cpp
+    src/utils/utils.cpp
+    src/utils/device/device_manager.cpp
+    src/algorithm/spatial/spatial_density_grid.cpp
+    src/algorithm/flocking/cluster_detector.cpp
+    src/algorithm/collision/predictive_avoidance.cpp
+    src/algorithm/spatial/spot_potential.cpp
+    src/algorithm/collision/urgent_escape.cpp
+    src/algorithm/flocking/boid_model.cpp
+    src/algorithm/agent/robot_agent.cpp
+    src/comm/osc_sender.cpp
+    src/comm/osc_receiver.cpp
     src/main.cpp
 )
 
 # ヘッダーファイル
 set(HEADERS
-    src/params.hpp
-    src/utils.hpp
-    src/human_spot.hpp
-    src/spatial_density_grid.hpp
-    src/cluster_detector.hpp
-    src/predictive_avoidance.hpp
-    src/spot_potential.hpp
-    src/urgent_escape.hpp
-    src/boid_model.hpp
-    src/robot_agent.hpp
-    src/osc_sender.hpp
-    src/osc_receiver.hpp
-    src/device_manager.hpp
-    src/config.hpp
+    src/config/params.hpp
+    src/config/config.hpp
+    src/utils/utils.hpp
+    src/utils/types/human_spot.hpp
+    src/utils/types/position.hpp
+    src/utils/types/velocity.hpp
+    src/utils/device/device_manager.hpp
+    src/algorithm/spatial/spatial_density_grid.hpp
+    src/algorithm/flocking/cluster_detector.hpp
+    src/algorithm/collision/predictive_avoidance.hpp
+    src/algorithm/spatial/spot_potential.hpp
+    src/algorithm/collision/urgent_escape.hpp
+    src/algorithm/flocking/boid_model.hpp
+    src/algorithm/agent/robot_agent.hpp
+    src/comm/osc_sender.hpp
+    src/comm/osc_receiver.hpp
 )
 
 # 実行ファイル
