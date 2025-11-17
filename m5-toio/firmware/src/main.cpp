@@ -1,16 +1,27 @@
 #include <M5Unified.h>
+#include <cstdio>
 #include <string>
 
+#include "commands/command_dispatcher.h"
 #include "controller/toio_controller.h"
+#include "net/websocket_server.h"
+#include "protocol/protocol_handler.h"
 #include "ui/ui_helpers.h"
 
 namespace {
-constexpr uint32_t kScanDurationSec = 3;
 constexpr uint32_t kRefreshIntervalMs = 1000;
-constexpr char kTargetSuffix[] = "m7d";
+constexpr uint16_t kWebsocketPort = 9000;
+
+// Wi-Fi credentials: replace with your network settings.
+constexpr char kWifiSsid[] = "TomoshibiTechnology_IoT";
+constexpr char kWifiPassword[] = "All_outlook";
 
 ToioController g_toio;
 UiHelpers g_ui;
+WebsocketServer g_server;
+CommandDispatcher g_commands(g_toio);
+ProtocolHandler g_protocol(
+    g_commands, [](const std::string& payload) { return g_server.Send(payload); });
 
 void InitializeM5Hardware() {
   auto cfg = M5.config();
@@ -21,74 +32,34 @@ void InitializeM5Hardware() {
 
   M5.Display.setRotation(3);
   g_ui.Begin();
-  g_ui.DrawHeader("Scanning...");
+  g_ui.DrawHeader("Wi-Fi connecting...");
 }
 }  // namespace
-
-void PerformStartupTest() {
-  constexpr uint8_t kLedR = 0x00;
-  constexpr uint8_t kLedG = 0xff;
-  constexpr uint8_t kLedB = 0x80;
-  constexpr uint8_t kTestSpeed = 30;
-
-  if (g_toio.setLedColor(kLedR, kLedG, kLedB)) {
-    M5.Log.println("LED test applied.");
-  }
-  if (g_toio.driveMotor(kTestSpeed, kTestSpeed)) {
-    delay(1000);
-    g_toio.driveMotor(0, 0);
-  }
-}
-
-void InitGoalFollowing() {
-  float g_goalX = 300.0f;
-  float g_goalY = 200.0f;
-  
-  g_toio.setGoalTuning(/*vmax=*/80.0f, /*wmax=*/70.0f, /*k_r=*/1.0f,
-                       /*k_a=*/0.8f, /*reverse_threshold_deg=*/90.0f,
-                       /*reverse_hysteresis_deg=*/10.0f);
-  g_toio.setGoal(g_goalX, g_goalY, /*stop_distance=*/20.0f);
-}
 
 void setup() {
   InitializeM5Hardware();
 
-  std::vector<std::string> scan_results;
-  auto status = g_toio.scan(kScanDurationSec, &scan_results);
-  g_ui.ShowInitResult(status);
-  if (status != ToioController::InitStatus::kScanReady) {
-    return;
-  }
-  g_ui.LogScanResults(scan_results);
-  delay(1000);
-
-  g_ui.DrawHeader("Connecting...");
-  status = g_toio.connectBySuffix(kTargetSuffix);
-  g_ui.ShowInitResult(status);
-  if (status != ToioController::InitStatus::kConnected) {
+  const bool net_ok = g_server.Begin(
+      kWifiSsid, kWifiPassword, kWebsocketPort,
+      [](const std::string& message) { g_protocol.HandleMessage(message); },
+      []() { g_protocol.HandleClientConnected(); },
+      []() { g_protocol.HandleClientDisconnected(); });
+  if (!net_ok) {
+    g_ui.DrawHeader("Wi-Fi failed");
     return;
   }
 
-  const float board_voltage = M5.Power.getBatteryVoltage() *(3.3f/4096.0f);
-  g_ui.UpdateStatus(g_toio.pose(), g_toio.hasPose(), g_toio.batteryLevel(),
-                    g_toio.hasBatteryLevel(), board_voltage,
-                    g_toio.ledColor(), g_toio.motorState(),
-                    /*pose_dirty=*/true, /*battery_dirty=*/true,
-                    kRefreshIntervalMs);
-  g_toio.clearPoseDirty();
-  g_toio.clearBatteryDirty();
-  PerformStartupTest();
-  InitGoalFollowing();
+  char header[64];
+  snprintf(header, sizeof(header), "WS %s:%u",
+           g_server.local_ip().toString().c_str(),
+           static_cast<unsigned>(kWebsocketPort));
+  g_ui.DrawHeader(header);
 }
 
 void loop() {
   M5.update();
   g_toio.loop();
-
-  if (!g_toio.hasActiveCore()) {
-    delay(100);
-    return;
-  }
+  g_server.Loop();
 
   const bool pose_dirty = g_toio.poseDirty();
   const bool battery_dirty = g_toio.batteryDirty();
@@ -106,5 +77,7 @@ void loop() {
     g_toio.clearBatteryDirty();
   }
 
-  delay(10);
+  g_protocol.MaybeSendStatus(pose_dirty, battery_dirty);
+
+  // delay(10);
 }

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M5 toio WebSocket クライアント</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f172a;
+      --panel: #111827;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --danger: #f87171;
+      --border: #1f2937;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 12px; }
+    h2 { font-size: 1.1rem; margin: 0 0 10px; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    label { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 4px; }
+    input, button, select {
+      font: inherit;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #0b1220;
+      color: var(--text);
+    }
+    button {
+      background: #1e293b;
+      border-color: #334155;
+      cursor: pointer;
+      transition: transform 0.05s ease, background 0.2s ease;
+    }
+    button:hover { background: #0ea5e9; color: #0b1220; }
+    button:active { transform: translateY(1px); }
+    button[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      gap: 16px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .flex {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .rows { display: grid; gap: 10px; }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #1f2937;
+      border: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .dot.ok { background: #22c55e; }
+    .dot.bad { background: var(--danger); }
+    .log {
+      padding: 10px;
+      background: #0b1220;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      min-height: 240px;
+      max-height: 360px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .small { font-size: 0.9rem; color: var(--muted); }
+    .row-inputs {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .pill { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); background: #0b1220; }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .hint { color: var(--muted); font-size: 0.85rem; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="panel">
+      <h1>M5 toio WebSocket クライアント</h1>
+      <p>ミニマルなブラウザ用クライアントです。M5のIP・ポートを入力して接続し、各種コマンドを送ってください。</p>
+      <div class="grid-2">
+        <div class="rows">
+          <div class="section-header">
+            <h2>接続</h2>
+            <span class="status-badge" id="ws-state">
+              <span class="dot" id="ws-dot"></span>
+              <span id="ws-label">disconnected</span>
+            </span>
+          </div>
+          <div class="rows">
+            <div class="row-inputs">
+              <div>
+                <label for="host">ホスト/IP</label>
+                <input id="host" type="text" placeholder="192.168.x.x" autocomplete="off">
+              </div>
+              <div>
+                <label for="port">ポート</label>
+                <input id="port" type="number" min="1" max="65535" value="9000">
+              </div>
+              <div>
+                <label for="path">パス</label>
+                <input id="path" type="text" value="/" autocomplete="off">
+              </div>
+            </div>
+            <div class="flex">
+              <button id="connect-btn">接続</button>
+              <button id="disconnect-btn" disabled>切断</button>
+              <span class="hint">URLは <span class="mono">ws://host:port/path</span> 形式。IPはM5の画面に表示されます。</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rows">
+          <div class="section-header">
+            <h2>現在の状態</h2>
+            <span class="pill mono" id="hello-pill" title="hello受信状況">hello: -</span>
+          </div>
+          <div class="rows small">
+            <div class="flex">
+              <span class="status-badge">
+                <span class="dot" id="cube-dot"></span>
+                <span>Cube 接続</span>
+              </span>
+              <span class="pill" id="goal-pill">goal inactive</span>
+              <span class="pill" id="subscribe-pill">subscribe: off</span>
+            </div>
+            <div>Pose: <span class="mono" id="pose-text">-</span></div>
+            <div>Battery: <span class="mono" id="batt-text">-</span></div>
+            <div>LED: <span class="mono" id="led-text">-</span></div>
+            <div>Motor: <span class="mono" id="motor-text">-</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="section-header">
+        <h2>コマンド</h2>
+        <span class="hint">送信時に自動で <span class="mono">id</span> を付与します。</span>
+      </div>
+      <div class="grid-2">
+        <div class="rows">
+          <div class="flex">
+            <button data-action="scan">scan</button>
+            <span class="hint" id="scan-result">scan-result: -</span>
+          </div>
+          <div class="rows">
+            <label for="suffix">connect (suffix)</label>
+            <div class="flex">
+              <input id="suffix" type="text" placeholder="A3Q" autocomplete="off">
+              <button data-action="connect">connect</button>
+            </div>
+            <span class="hint">toioの末尾3文字を指定</span>
+          </div>
+          <div class="rows">
+            <label>status</label>
+            <div class="flex">
+              <button data-action="status-request">status-request</button>
+              <button data-action="subscribe-toggle">subscribe on/off</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="rows">
+          <div class="rows">
+            <label>led</label>
+            <div class="row-inputs">
+              <input id="led-r" type="number" min="0" max="255" placeholder="r">
+              <input id="led-g" type="number" min="0" max="255" placeholder="g">
+              <input id="led-b" type="number" min="0" max="255" placeholder="b">
+            </div>
+            <button data-action="led">set led</button>
+          </div>
+
+          <div class="rows">
+            <label>motor (-100..100)</label>
+            <div class="row-inputs">
+              <input id="motor-left" type="number" min="-100" max="100" placeholder="left">
+              <input id="motor-right" type="number" min="-100" max="100" placeholder="right">
+            </div>
+            <button data-action="motor">drive motor</button>
+          </div>
+
+          <div class="rows">
+            <label>goal-set</label>
+            <div class="row-inputs">
+              <input id="goal-x" type="number" step="1" placeholder="x">
+              <input id="goal-y" type="number" step="1" placeholder="y">
+              <input id="goal-stop" type="number" step="1" placeholder="stop distance (default 20)" value="20">
+            </div>
+            <div class="flex">
+              <button data-action="goal-set">set goal</button>
+              <button data-action="goal-clear">goal-clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="section-header">
+        <h2>コンソール</h2>
+        <button id="clear-log">ログをクリア</button>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <script>
+    const connectBtn = document.getElementById("connect-btn");
+    const disconnectBtn = document.getElementById("disconnect-btn");
+    const wsLabel = document.getElementById("ws-label");
+    const wsDot = document.getElementById("ws-dot");
+    const cubeDot = document.getElementById("cube-dot");
+    const goalMarker = document.getElementById("goal-pill");
+    const subscribeMarker = document.getElementById("subscribe-pill");
+    const poseText = document.getElementById("pose-text");
+    const battText = document.getElementById("batt-text");
+    const ledText = document.getElementById("led-text");
+    const motorText = document.getElementById("motor-text");
+    const scanResult = document.getElementById("scan-result");
+    const helloPill = document.getElementById("hello-pill");
+    const logView = document.getElementById("log");
+
+    const hostInput = document.getElementById("host");
+    const portInput = document.getElementById("port");
+    const pathInput = document.getElementById("path");
+    const suffixInput = document.getElementById("suffix");
+    const ledInputs = {
+      r: document.getElementById("led-r"),
+      g: document.getElementById("led-g"),
+      b: document.getElementById("led-b"),
+    };
+    const motorInputs = {
+      left: document.getElementById("motor-left"),
+      right: document.getElementById("motor-right"),
+    };
+    const goalInputs = {
+      x: document.getElementById("goal-x"),
+      y: document.getElementById("goal-y"),
+      stop: document.getElementById("goal-stop"),
+    };
+
+    let socket = null;
+    let nextId = 1;
+    let subscribed = false;
+
+    function log(text, tone = "info") {
+      const time = new Date().toLocaleTimeString();
+      const line = `[${time}] ${text}`;
+      const div = document.createElement("div");
+      div.textContent = line;
+      if (tone === "error") div.style.color = "#f87171";
+      if (tone === "out") div.style.color = "#38bdf8";
+      if (tone === "in") div.style.color = "#22c55e";
+      logView.appendChild(div);
+      logView.scrollTop = logView.scrollHeight;
+    }
+
+    function setWsState(connected) {
+      wsLabel.textContent = connected ? "connected" : "disconnected";
+      wsDot.className = connected ? "dot ok" : "dot bad";
+      connectBtn.disabled = connected;
+      disconnectBtn.disabled = !connected;
+    }
+
+    function setCubeState(connected) {
+      cubeDot.className = connected ? "dot ok" : "dot bad";
+    }
+
+    function formatPose(msg) {
+      if (typeof msg.x !== "number" || typeof msg.y !== "number") return "-";
+      const angle = typeof msg.angle === "number" ? msg.angle.toFixed(1) : "?";
+      const mat = msg.on_mat ? "on-mat" : "off-mat";
+      return `x:${msg.x.toFixed(1)} y:${msg.y.toFixed(1)} ang:${angle} ${mat}`;
+    }
+
+    function formatArray(arr) {
+      if (!Array.isArray(arr)) return "-";
+      return `[${arr.join(", ")}]`;
+    }
+
+    function updateStatus(msg) {
+      setCubeState(!!msg.connected);
+      poseText.textContent = formatPose(msg);
+      battText.textContent = typeof msg.batt === "number" ? `${msg.batt}%` : "-";
+      ledText.textContent = formatArray(msg.led);
+      motorText.textContent = formatArray(msg.motor);
+      goalMarker.textContent = msg.goal_active ? "goal active" : "goal inactive";
+    }
+
+    function updateSubscribeMarker(enable) {
+      subscribed = !!enable;
+      subscribeMarker.textContent = subscribed ? "subscribe: on" : "subscribe: off";
+    }
+
+    function handleMessage(data) {
+      log(`<- ${JSON.stringify(data)}`, "in");
+      if (data.type === "hello") {
+        helloPill.textContent = "hello: received";
+      } else if (data.type === "status") {
+        updateStatus(data);
+      } else if (data.type === "status-subscribe-result" && !data.ok) {
+        updateSubscribeMarker(!subscribed);
+      } else if (data.type === "scan-result") {
+        const suffixes = Array.isArray(data.suffixes) ? data.suffixes.join(", ") : "-";
+        scanResult.textContent = `scan-result: status=${data.status} suffixes=${suffixes}`;
+      } else if (data.type === "goal-reached") {
+        goalMarker.textContent = "goal reached";
+      }
+    }
+
+    function buildUrl() {
+      const host = hostInput.value.trim();
+      const port = portInput.value.trim();
+      const path = pathInput.value.trim() || "/";
+      if (!host) {
+        alert("ホスト/IPを入力してください");
+        return null;
+      }
+      if (/^wss?:\/\//i.test(host)) {
+        return host;
+      }
+      const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+      return `ws://${host}${port ? `:${port}` : ""}${normalizedPath}`;
+    }
+
+    function connect() {
+      const url = buildUrl();
+      if (!url) return;
+      log(`connecting to ${url}`);
+      if (socket) socket.close();
+      socket = new WebSocket(url);
+      setWsState(false);
+
+      socket.onopen = () => {
+        log("WebSocket connected");
+        setWsState(true);
+      };
+
+      socket.onclose = (ev) => {
+        const code = typeof ev.code === "number" ? ev.code : "n/a";
+        const reason = ev.reason || "no reason";
+        log(`WebSocket closed (code=${code}, reason=${reason})`);
+        setWsState(false);
+        setCubeState(false);
+      };
+
+      socket.onerror = (ev) => {
+        const state = socket ? socket.readyState : -1;
+        log(`WebSocket error: ${ev.message || ev.type || "unknown"} (readyState=${state})`, "error");
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const json = JSON.parse(event.data);
+          handleMessage(json);
+        } catch (err) {
+          log(`<- ${event.data}`, "in");
+        }
+      };
+    }
+
+    function disconnect() {
+      if (socket) {
+        socket.close();
+        socket = null;
+        setWsState(false);
+      }
+    }
+
+    function send(type, payload = {}) {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        log("not connected", "error");
+        return;
+      }
+      const message = { type, id: `cli-${nextId++}`, ...payload };
+      socket.send(JSON.stringify(message));
+      log(`-> ${JSON.stringify(message)}`, "out");
+    }
+
+    function handleAction(action) {
+      switch (action) {
+        case "scan":
+          send("scan");
+          break;
+        case "connect":
+          send("connect", { suffix: suffixInput.value.trim() });
+          break;
+        case "status-request":
+          send("status-request");
+          break;
+        case "subscribe-toggle":
+          updateSubscribeMarker(!subscribed);
+          send("status-subscribe", { enable: subscribed });
+          break;
+        case "led":
+          send("led", {
+            r: Number(ledInputs.r.value),
+            g: Number(ledInputs.g.value),
+            b: Number(ledInputs.b.value),
+          });
+          break;
+        case "motor":
+          send("motor", {
+            left: Number(motorInputs.left.value),
+            right: Number(motorInputs.right.value),
+          });
+          break;
+        case "goal-set":
+          if (goalInputs.x.value === "" || goalInputs.y.value === "") {
+            log("goal-set requires x and y", "error");
+            return;
+          }
+          send("goal-set", {
+            x: Number(goalInputs.x.value),
+            y: Number(goalInputs.y.value),
+            stop_distance: goalInputs.stop.value ? Number(goalInputs.stop.value) : undefined,
+          });
+          break;
+        case "goal-clear":
+          send("goal-clear");
+          break;
+        default:
+          log(`unknown action: ${action}`, "error");
+      }
+    }
+
+    connectBtn.addEventListener("click", connect);
+    disconnectBtn.addEventListener("click", disconnect);
+    document.querySelectorAll("button[data-action]").forEach((btn) => {
+      btn.addEventListener("click", () => handleAction(btn.dataset.action));
+    });
+    document.getElementById("clear-log").addEventListener("click", () => {
+      logView.innerHTML = "";
+    });
+  </script>
+</body>
+</html>
