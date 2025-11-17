@@ -4,7 +4,7 @@
 #include <optional>
 #include <string>
 #include <limits>
-#include "../config/params.hpp"
+#include "../../config/params.hpp"
 
 namespace swarm_control {
 

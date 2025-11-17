@@ -32,6 +32,14 @@ PCツール群は C++17 + CMake を想定した再構築中であり、以下の
 - **内容**: OSC パケット・トランスポート、DeviceRegistry、暗号フック
 - **用途**: 全モジュールで共有される共通ライブラリ
 
+### 5. unified/ - 統合アプリケーション
+- **用途**: Toioの動きとacousticsの制御を統一的に行う統合アプリケーション
+- **機能**: 
+  - Swarm ControlとSchedulerを一つのビルドで統合
+  - 一つのプロセス内で両機能を並行実行
+  - 用途に応じて最適化された別々のOSC送信実装を使用
+- **詳細**: [unified/README.md](unified/README.md)、[docs/unified_runbook.md](../docs/unified_runbook.md)
+
 ## OSC送信実装の違い
 
 ### scheduler (音響制御)
@@ -62,7 +70,7 @@ ctest --test-dir build
 ## 実行例
 
 ### Scheduler
-```bash
+  ```bash
 ./build/scheduler/agent_a_scheduler \
   scheduler/examples/basic_timeline.json \
   --host 192.168.10.255 \
@@ -74,10 +82,19 @@ ctest --test-dir build
 ```
 
 ### Swarm Control
-```bash
+  ```bash
 ./build/swarm_control/swarm_control \
   --config config/swarm_config.json
-```
+  ```
+
+### Unified (統合アプリケーション)
+  ```bash
+# Toioの動きとacousticsの制御を統一的に行う
+./build/unified/toio_control \
+  -c config/toio_control_config.json
+  ```
+
+設定ファイルで`swarm.enabled`と`scheduler.enabled`を制御できます。
 
 ## アーキテクチャ
 

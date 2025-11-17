@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>
-#include "../config/params.hpp"
+#include "../../config/params.hpp"
 
 namespace swarm_control {
 

@@ -174,10 +174,39 @@ src/
 
 ---
 
-## 7. 参考資料
+## 7. 統合アプリケーション (unified/)
+
+### 7.1 概要
+`unified/`は、Toioの動き（swarm_control）とacoustics（scheduler）の制御を統一的に行う統合アプリケーションです。
+
+### 7.2 アーキテクチャ
+- **統合方式**: 一つのプロセス内で両機能を並行実行
+- **OSC送信**: 用途に応じて最適化された別々の実装を使用
+  - Swarm Control: `swarm_control::OscSender` (高頻度、常時接続)
+  - Scheduler: `toio_control::scheduler::osc::OscBundleSender` (低頻度、バッチ送信)
+- **スレッド**: Schedulerは別スレッドで実行、Swarm Controlはメインループで実行
+
+### 7.3 使用方法
+```bash
+# ビルド
+cmake --build build --target toio_control
+
+# 実行
+./build/unified/toio_control -c config/toio_control_config.json
+```
+
+設定ファイルで`swarm.enabled`と`scheduler.enabled`を制御できます。
+
+詳細は [unified/README.md](../pc_tools/unified/README.md) を参照してください。
+
+---
+
+## 8. 参考資料
 
 - [OSC実装ドキュメント](./osc_implementation.md)
 - [OSC契約仕様](./osc_contract.md)
 - [swarm_control README](../pc_tools/swarm_control/README.md)
 - [scheduler README](../pc_tools/scheduler/README.md)
+- [unified README](../pc_tools/unified/README.md)
+- [Unified Runbook](./unified_runbook.md)
 

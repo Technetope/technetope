@@ -1,13 +1,29 @@
 # Toio Control - Unified Application
 
-Swarm robot制御とサウンドコントロールを統合した単一アプリケーションです。
+**Toioの動きとacousticsの制御を統一的に行う統合アプリケーション**
+
+Swarm robot制御とサウンドコントロールを一つのビルドで統合した単一アプリケーションです。
 
 ## 概要
 
 このアプリケーションは、以下の機能を統合しています：
 
 - **Swarm Control**: Toioロボット群の制御（群れ行動、衝突回避、人間回避など）
+  - 高頻度のリアルタイム制御（1秒ごと）
+  - 独自の`OscSender`を使用（常時接続維持）
+  
 - **Sound Scheduler**: タイムラインに基づくサウンド再生制御
+  - 低頻度のバッチ送信（タイムラインに基づく）
+  - 独自の`OscBundleSender`を使用（送信後切断）
+  - 別スレッドで実行
+
+## アーキテクチャ
+
+- **統合方式**: 一つのプロセス内で両機能を並行実行
+- **OSC送信**: 用途に応じて最適化された別々の実装を使用
+  - Swarm: `swarm_control::OscSender` (高頻度、常時接続)
+  - Scheduler: `toio_control::scheduler::osc::OscBundleSender` (低頻度、バッチ送信)
+- **スレッド**: Schedulerは別スレッドで実行、Swarm Controlはメインループで実行
 
 ## ビルド方法
 
@@ -90,7 +106,11 @@ cmake --build build/toio_control --target toio_control
 
 ## 注意事項
 
-- Swarm ControlとSchedulerは同じOSC送信器を共有します
-- Schedulerは別スレッドで実行されます
-- 設定ファイルが存在しない場合はデフォルト値が使用されます
+- **OSC送信器**: Swarm ControlとSchedulerは用途に応じて最適化された別々のOSC送信器を使用
+  - Swarm Control: `swarm_control::OscSender` (高頻度、常時接続)
+  - Scheduler: `toio_control::scheduler::osc::OscBundleSender` (低頻度、バッチ送信、送信後切断)
+- **スレッド**: Schedulerは別スレッドで実行され、Swarm Controlはメインループで実行
+- **設定ファイル**: 設定ファイルが存在しない場合はデフォルト値が使用されます
+- **統合制御**: 一つのアプリケーションでToioの動きとacousticsの制御を統一的に行えます
+- **手順書**: 再現手順は `docs/unified_runbook.md` を参照してください
 

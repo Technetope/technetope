@@ -124,6 +124,7 @@ add_subdirectory(libs)
 add_subdirectory(scheduler)
 add_subdirectory(monitor)
 add_subdirectory(swarm_control)
+add_subdirectory(unified)
 
 set(TOIO_CONTROL_GUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/gui")
 if (EXISTS "${TOIO_CONTROL_GUI_DIR}/CMakeLists.txt")

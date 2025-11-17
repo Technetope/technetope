@@ -156,17 +156,17 @@ std::unordered_map<std::string, std::vector<std::string>> loadTargetMap(const st
     return loadCsvTargetMap(path);
 }
 
-void sendBundles(const std::vector<ScheduledBundle>& bundles, const SchedulerConfig& config) {
+void sendBundles(const std::vector<audio::ScheduledBundle>& bundles, const SchedulerConfig& config) {
     // 音響制御用のOSC送信（低頻度バッチ送信に最適化）
     toio_control::scheduler::osc::OscBundleSender sender(config.host, config.port, config.broadcast);
-    
+
     if (config.encryptOsc) {
         if (!config.oscKey || !config.oscIv) {
             throw std::runtime_error("OSC encryption enabled without key/iv material");
         }
         sender.enableEncryption(*config.oscKey, *config.oscIv);
     }
-    
+
     // バンドルを変換
     std::vector<toio_control::osc::Bundle> oscBundles;
     oscBundles.reserve(bundles.size());

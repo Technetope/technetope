@@ -6,20 +6,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(OpenSSL REQUIRED)
 
-# Swarm control sources (excluding main.cpp)
+# Swarm control sources (整理後の構造)
 set(SWARM_SOURCES
-    ../swarm_control/src/params.cpp
-    ../swarm_control/src/utils.cpp
-    ../swarm_control/src/spatial_density_grid.cpp
-    ../swarm_control/src/cluster_detector.cpp
-    ../swarm_control/src/predictive_avoidance.cpp
-    ../swarm_control/src/spot_potential.cpp
-    ../swarm_control/src/urgent_escape.cpp
-    ../swarm_control/src/boid_model.cpp
-    ../swarm_control/src/robot_agent.cpp
-    ../swarm_control/src/osc_sender.cpp
-    ../swarm_control/src/osc_receiver.cpp
-    ../swarm_control/src/device_manager.cpp
+    ../swarm_control/src/config/params.cpp
+    ../swarm_control/src/config/config.cpp
+    ../swarm_control/src/utils/utils.cpp
+    ../swarm_control/src/utils/device/device_manager.cpp
+    ../swarm_control/src/algorithm/spatial/spatial_density_grid.cpp
+    ../swarm_control/src/algorithm/flocking/cluster_detector.cpp
+    ../swarm_control/src/algorithm/collision/predictive_avoidance.cpp
+    ../swarm_control/src/algorithm/spatial/spot_potential.cpp
+    ../swarm_control/src/algorithm/collision/urgent_escape.cpp
+    ../swarm_control/src/algorithm/flocking/boid_model.cpp
+    ../swarm_control/src/algorithm/agent/robot_agent.cpp
+    ../swarm_control/src/comm/osc_sender.cpp
+    ../swarm_control/src/comm/osc_receiver.cpp
 )
 
 # ソースファイル
@@ -37,6 +38,9 @@ target_include_directories(toio_control
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/../swarm_control/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../swarm_control  # 相対パス（../config/など）を解決するため
+        ${CMAKE_CURRENT_SOURCE_DIR}/../libs/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../scheduler/include
         ${CMAKE_CURRENT_SOURCE_DIR}/../third_party
 )
 

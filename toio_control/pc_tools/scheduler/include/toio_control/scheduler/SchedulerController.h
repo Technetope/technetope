@@ -29,7 +29,7 @@ struct SchedulerConfig {
 };
 
 struct SchedulerReport {
-    std::vector<ScheduledBundle> bundles;
+    std::vector<audio::ScheduledBundle> bundles;
 };
 
 class SchedulerController {

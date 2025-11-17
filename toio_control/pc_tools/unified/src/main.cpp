@@ -4,20 +4,21 @@
 #include "toio_control/osc/OscTransport.h"
 #include "toio_control/osc/OscEncryptor.h"
 
-// Swarm control components
-#include "../swarm_control/src/device_manager.hpp"
-#include "../swarm_control/src/robot_agent.hpp"
-#include "../swarm_control/src/spatial_density_grid.hpp"
-#include "../swarm_control/src/cluster_detector.hpp"
-#include "../swarm_control/src/predictive_avoidance.hpp"
-#include "../swarm_control/src/spot_potential.hpp"
-#include "../swarm_control/src/urgent_escape.hpp"
-#include "../swarm_control/src/boid_model.hpp"
-#include "../swarm_control/src/osc_receiver.hpp"
-#include "../swarm_control/src/osc_sender.hpp"
-#include "../swarm_control/src/params.hpp"
-#include "../swarm_control/src/human_spot.hpp"
-#include "../swarm_control/src/velocity.hpp"
+// Swarm control components (整理後の構造)
+// swarm_control/srcがincludeディレクトリに追加されているため、直接パスを指定
+#include "algorithm/agent/robot_agent.hpp"
+#include "algorithm/spatial/spatial_density_grid.hpp"
+#include "algorithm/flocking/cluster_detector.hpp"
+#include "algorithm/collision/predictive_avoidance.hpp"
+#include "algorithm/spatial/spot_potential.hpp"
+#include "algorithm/collision/urgent_escape.hpp"
+#include "algorithm/flocking/boid_model.hpp"
+#include "comm/osc_receiver.hpp"
+#include "comm/osc_sender.hpp"
+#include "config/params.hpp"
+#include "utils/types/human_spot.hpp"
+#include "utils/types/velocity.hpp"
+#include "utils/device/device_manager.hpp"
 
 #include <CLI11.hpp>
 #include <spdlog/spdlog.h>
@@ -71,17 +72,20 @@ int main(int argc, char** argv) {
         spdlog::warn("Failed to load DeviceManager: {}", ex.what());
     }
     
-    // 統一OSC送信器を初期化
-    std::unique_ptr<OscSender> unifiedOscSender;
-    if (config.swarm.enabled || config.scheduler.enabled) {
-        unifiedOscSender = std::make_unique<OscSender>(
+    // Swarm control用OSC送信器を初期化（高頻度送信用、常時接続）
+    std::unique_ptr<OscSender> swarmOscSender;
+    if (config.swarm.enabled) {
+        swarmOscSender = std::make_unique<OscSender>(
             config.osc.sendAddress, config.osc.sendPort);
         
         if (config.osc.encryptionEnabled && config.osc.key.has_value() && config.osc.iv.has_value()) {
-            unifiedOscSender->enableEncryption(config.osc.key.value(), config.osc.iv.value());
-            spdlog::info("OSC encryption enabled");
+            swarmOscSender->enableEncryption(config.osc.key.value(), config.osc.iv.value());
+            spdlog::info("Swarm OSC encryption enabled");
         }
     }
+    
+    // 注意: schedulerは独自のOscBundleSenderを使用（SchedulerController内で初期化）
+    // scheduler用は低頻度バッチ送信用で、送信後切断される
     
     // Swarm control components
     std::vector<std::unique_ptr<RobotAgent>> robots;
@@ -307,8 +311,8 @@ int main(int argc, char** argv) {
                     targets.push_back(target);
                 }
                 
-                if (unifiedOscSender) {
-                    unifiedOscSender->sendTargets(targets);
+                if (swarmOscSender) {
+                    swarmOscSender->sendTargets(targets);
                 }
             }
             
