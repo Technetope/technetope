@@ -1,6 +1,6 @@
 # Calibration Module - 実装状況サマリー
 
-**最終更新:** 2025-11-08
+**最終更新:** 2025-11-09
 
 このドキュメントは、キャリブレーションモジュールの実装状況を一目で把握するためのサマリーです。
 
@@ -23,6 +23,7 @@
 | FloorPlaneEstimator | 100% | ✅ 完了 | RANSAC + 3D点群フィルタリング対応 |
 | QC Scripts | 100% | ✅ 完了 | run_calibration_qc.cpp、Markdown/JSONレポート生成 |
 | 統合テスト | 100% | ✅ 完了 | モックデータ、test_floor_plane_estimator、test_calibration_pipeline_integration |
+| USB 2.0対応 | 100% | ✅ 完了 | calibration_config_usb2.json（6fps）実装済み |
 
 ---
 
@@ -108,8 +109,87 @@ sudo ./capture_calibration
 
 **主な問題:**
 - sudo実行が必須
-- USB3接続推奨（USB2は15 FPS制限）
+- USB 3.0接続推奨（USB 2.0は6fps制限、対応済み）
 - macOSカメラプロセスとの競合
+
+---
+
+## 🔌 USB接続対応状況
+
+### USB 2.0対応（✅ 実装完了）
+
+**現状**: USB 2.0環境でも動作可能です。専用設定ファイルを使用してください。
+
+**設定ファイル:**
+- `calibration_config_usb2.json` - USB 2.0用（6fps）
+  - フレームレート: 6fps（USB 2.0の帯域幅制限に対応）
+  - 解像度: 640x480（USB 3.0と同じ、精度に影響なし）
+  - その他の設定: USB 3.0用設定と同じ
+
+**使用方法:**
+```bash
+# CLIツール
+sudo ./build/capture_calibration \
+  calibration_config_usb2.json \
+  calib_result.json
+
+# インタラクティブツール
+arch -x86_64 sudo ./build/capture_calibration_interactive \
+  calibration_config_usb2.json \
+  calib_result.json
+```
+
+**制限事項:**
+- フレームレート: 最大6fps（USB 2.0の帯域幅480 Mb/sの制限）
+- 表示が少し遅く感じる可能性がありますが、キャリブレーション精度には影響しません
+- 15fpsや30fpsはUSB 2.0では対応できません
+
+**USB接続速度の確認方法:**
+```bash
+# system_profilerで確認
+system_profiler SPUSBDataType | grep -i -B 2 -A 10 "0AD3\|realsense"
+# "Speed: Up to 480 Mb/s" → USB 2.0
+# "Speed: Up to 5 Gb/s" → USB 3.0
+
+# rs-enumerate-devicesで確認
+sudo /opt/homebrew/bin/rs-enumerate-devices
+# "Usb Type Descriptor: 2.1" → USB 2.0/2.1
+# "Usb Type Descriptor: 3.1" → USB 3.0/3.1
+```
+
+### USB 3.0対応（✅ 実装完了）
+
+**設定ファイル:**
+- `calibration_config_low_res.json` - USB 3.0用（15fps、テスト用）
+- `config/calibration_config.json` - USB 3.0用（15fps、本番用）
+
+**使用方法:**
+```bash
+# CLIツール
+sudo ./build/capture_calibration \
+  calibration_config_low_res.json \
+  calib_result.json
+
+# インタラクティブツール
+arch -x86_64 sudo ./build/capture_calibration_interactive \
+  calibration_config_low_res.json \
+  calib_result.json
+```
+
+**推奨事項:**
+- USB 3.0接続を推奨（より高いフレームレートが可能）
+- Mac本体のUSB-Cポートに直挿し（ハブ経由でない）
+- USB 3.0対応ケーブルを使用
+
+---
+
+## 📋 設定ファイル一覧
+
+| 設定ファイル | USB接続 | フレームレート | 用途 | 状態 |
+|-------------|---------|---------------|------|------|
+| `calibration_config_usb2.json` | USB 2.0 | 6fps | USB 2.0環境用 | ✅ 実装済み |
+| `calibration_config_low_res.json` | USB 3.0 | 15fps | テスト用 | ✅ 実装済み |
+| `config/calibration_config.json` | USB 3.0 | 15fps | 本番用 | ✅ 実装済み |
 
 ---
 
@@ -132,9 +212,18 @@ cmake --build build
 sudo killall VDCAssistant AppleCameraAssistant 2>/dev/null || true
 cd build && sudo ctest -L qc
 
-# 実機キャリブレーション実行
+# 実機キャリブレーション実行（USB接続に応じて設定ファイルを選択）
 sudo killall VDCAssistant AppleCameraAssistant 2>/dev/null || true
-sudo ./build/capture_calibration
+
+# USB 2.0の場合
+sudo ./build/capture_calibration \
+  calibration_config_usb2.json \
+  calib_result.json
+
+# USB 3.0の場合
+sudo ./build/capture_calibration \
+  calibration_config_low_res.json \
+  calib_result.json
 
 # QCツール手動実行
 sudo ./build/run_calibration_qc [config.json] [report.md] [report.json]
@@ -149,7 +238,8 @@ sudo ./build/run_calibration_qc [config.json] [report.md] [report.json]
 3. ✅ CalibrationConfig / FloorPlaneEstimatorの拡張 → **完了**
 4. ✅ 統合テストで全フロー検証 → **完了**
 5. ✅ QCスクリプト実装 → **完了**
-6. ⬜ 実機での動作確認とデバッグ → **次のステップ**
+6. ✅ USB 2.0対応実装 → **完了**（calibration_config_usb2.json）
+7. ⬜ 実機での動作確認とデバッグ（USB 2.0環境） → **次のステップ**
 
 ---
 
@@ -160,6 +250,7 @@ sudo ./build/run_calibration_qc [config.json] [report.md] [report.json]
 
 ### 設定ファイル
 - `config/qc_config_example.json` - QC閾値設定のサンプル
+- `calibration_config_usb2.json` - USB 2.0用設定ファイル（6fps）
 
 ### テスト
 - `test/test_utils.h` - モックデータ生成ユーティリティ
@@ -169,6 +260,7 @@ sudo ./build/run_calibration_qc [config.json] [report.md] [report.json]
 ---
 
 **更新履歴:**
+- 2025-11-09: USB 2.0対応状況を明確化、実装状況を整理
 - 2025-11-08 (後半): QCスクリプト＋統合テスト実装完了、進捗98%到達
 - 2025-11-08 (前半): Intrinsics処理＋FloorPlaneEstimator＋JSON v2.0 対応を反映
 - 2025-01-08: 初版作成、実装状況の整理完了
